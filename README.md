@@ -10,17 +10,23 @@ Utilities for aligning GoPro (or other camera) video timestamps with GPX tracks.
 
 ## Requirements
 - Python 3.8+
-- [`exiftool`](https://exiftool.org/) available in your `PATH`
+- [`exiftool`](https://exiftool.org/) available in your `PATH` (for `gpx_splitter.py`)
+- `gpxpy`, `matplotlib`, and `contextily` Python packages (for map animation)
+- [`ffmpeg`](https://ffmpeg.org/) available in your `PATH` when exporting video
 
 ## Installation
-No package installation is required. Clone or download this repository and ensure `exiftool` is installed and on your `PATH`.
+Clone or download this repository. Install the tools you need:
 
 ```bash
-# Install exiftool on macOS (Homebrew)
-brew install exiftool
+# Core dependency for gpx_splitter.py
+brew install exiftool  # macOS
+sudo apt-get update && sudo apt-get install -y libimage-exiftool-perl  # Ubuntu/Debian
 
-# Install exiftool on Ubuntu/Debian
-sudo apt-get update && sudo apt-get install -y libimage-exiftool-perl
+# Map animation dependencies
+pip install gpxpy matplotlib contextily
+# ffmpeg is required to write MP4 output
+brew install ffmpeg  # macOS
+sudo apt-get install -y ffmpeg  # Ubuntu/Debian
 ```
 
 ## Usage
@@ -33,7 +39,24 @@ python3 gpx_splitter.py /path/to/video.MP4 /path/to/track.gpx \
 
 If `-o/--output` is omitted, the script writes to `<input>.cropped.gpx` next to the original GPX file.
 
-### What the script does
+## Animate a GPX route on a map
+`map_animator.py` turns a GPX track into an MP4 that draws the route over OpenStreetMap tiles. It converts coordinates to Web Mercator
+(EPSG:3857) so they align with the basemap and hides chart axes for a clean map view.
+
+Usage:
+
+```bash
+python3 map_animator.py route.gpx 45 1920x1080 -o route.mp4
+```
+
+- `route.gpx`: input GPX track
+- `45`: duration in seconds
+- `1920x1080`: output resolution (width x height)
+- `-o route.mp4` (optional): output file name; defaults to `output.mp4`
+
+The script fetches free OpenStreetMap tiles via `contextily` (no API key required) and writes MP4 video with `ffmpeg`.
+
+### What `gpx_splitter.py` does
 1. Reads creation and duration metadata from the video (UTC) using `exiftool`.
 2. Parses the GPX track, finds the points closest to the video start and end times, and keeps only that segment.
 3. Writes the cropped GPX file to the requested location.
