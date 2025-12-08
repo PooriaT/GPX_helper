@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "gpx-helper"
+version = "0.1.0"
+description = ""
+authors = ["PooriaT <pooria_taghdiri@hotmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.13"
+gpxpy = "^1.6.2"
+matplotlib = "^3.10.7"
+contextily = "^1.7.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
