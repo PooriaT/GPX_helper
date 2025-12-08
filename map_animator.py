@@ -1,4 +1,15 @@
 #!/usr/bin/env python3
+"""
+Create an animated MP4 of a GPX route overlaid on OpenStreetMap tiles.
+
+Usage:
+    python3 map_animator.py route.gpx 45 1920x1080 -o route.mp4
+
+Requirements:
+    pip install gpxpy matplotlib contextily
+    ffmpeg (for MP4 encoding)
+"""
+
 import os
 import math
 import argparse
