@@ -104,4 +104,4 @@ Then open the local Vite URL (default port 4173).
 Feel free to open issues or submit pull requests with improvements or bug fixes.
 
 ## License
-This repository does not currently specify a license. Please contact the author before reuse.
+This repository is available for use without limitations.
