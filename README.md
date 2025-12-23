@@ -1,6 +1,6 @@
 # GPX_helper
 
-Utilities for aligning GoPro (or other camera) video timestamps with GPX tracks. The primary tool, `gpx_splitter.py`, crops a GPX track to match a video clip so you can sync footage and GPS data for mapping or overlays.
+Utilities for aligning GoPro (or other camera) video timestamps with GPX tracks. The primary tool, `gpx_splitter.py`, crops a GPX track to match a video clip so you can sync footage and GPS data for mapping or overlays. The repository now includes a `frontend/` Svelte landing page and a `backend/` Python workspace that hosts the CLI tools.
 
 ## Features
 - Extracts video start time and duration from EXIF metadata via `exiftool`.
@@ -15,7 +15,7 @@ Utilities for aligning GoPro (or other camera) video timestamps with GPX tracks.
 - [`ffmpeg`](https://ffmpeg.org/) available in your `PATH` when exporting video
 
 ## Installation
-Clone or download this repository. Install the tools you need:
+Clone or download this repository. Install the tools you need for the backend:
 
 ```bash
 # Core dependency for gpx_splitter.py
@@ -29,11 +29,11 @@ brew install ffmpeg  # macOS
 sudo apt-get install -y ffmpeg  # Ubuntu/Debian
 ```
 
-## Usage
+## Backend usage
 Run the splitter by providing the video file and the GPX file. Optionally set an output path.
 
 ```bash
-python3 gpx_splitter.py /path/to/video.MP4 /path/to/track.gpx \
+python3 backend/gpx_splitter.py /path/to/video.MP4 /path/to/track.gpx \
   -o /path/to/track.cropped.gpx
 ```
 
@@ -46,7 +46,7 @@ If `-o/--output` is omitted, the script writes to `<input>.cropped.gpx` next to 
 Usage:
 
 ```bash
-python3 map_animator.py route.gpx 45 1920x1080 -o route.mp4
+python3 backend/map_animator.py route.gpx 45 1920x1080 -o route.mp4
 ```
 
 - `route.gpx`: input GPX track
@@ -88,6 +88,17 @@ exiftool -overwrite_original -P -api QuickTimeUTC=0 \
 - **`exiftool` not found**: Ensure it is installed and available in your `PATH`.
 - **Missing or incomplete metadata**: The script will fall back to the file's modification time and print a warning; verify your video metadata when accuracy matters.
 - **No timestamps in GPX**: The crop requires GPX points with valid `<time>` elements that include timezone information (e.g., a trailing `Z` for UTC).
+
+## Frontend landing page
+The Svelte-based landing page lives in `frontend/`. To run it locally:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Then open the local Vite URL (default port 4173).
 
 ## Contributing
 Feel free to open issues or submit pull requests with improvements or bug fixes.
