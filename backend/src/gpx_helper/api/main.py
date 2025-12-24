@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from io import BytesIO
+import shutil
 import tempfile
+from typing import BinaryIO
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -40,8 +42,15 @@ def _validate_upload(upload: UploadFile, label: str) -> None:
         raise HTTPException(status_code=400, detail=f"Missing {label} filename")
 
 
-def _read_upload(upload: UploadFile) -> bytes:
-    return upload.file.read()
+def _write_upload_to_file(upload: UploadFile, dest_file: BinaryIO, label: str) -> None:
+    upload.file.seek(0)
+    first_chunk = upload.file.read(1024 * 1024)
+    if not first_chunk:
+        raise HTTPException(status_code=400, detail=f"{label} file is empty")
+    dest_file.write(first_chunk)
+    shutil.copyfileobj(upload.file, dest_file)
+    dest_file.flush()
+    upload.file.seek(0)
 
 
 def _stream_gpx(payload: bytes, filename: str) -> StreamingResponse:
@@ -85,15 +94,10 @@ def trim_by_time(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    gpx_bytes = _read_upload(gpx_file)
-    if not gpx_bytes:
-        raise HTTPException(status_code=400, detail="GPX file is empty")
-
     with tempfile.NamedTemporaryFile(suffix=".gpx") as input_file, tempfile.NamedTemporaryFile(
         suffix=".gpx"
     ) as output_file:
-        input_file.write(gpx_bytes)
-        input_file.flush()
+        _write_upload_to_file(gpx_file, input_file, "GPX")
         try:
             crop_gpx_by_time(input_file.name, start_dt, end_dt, output_file.name)
         except Exception as exc:
@@ -110,20 +114,11 @@ def trim_by_video(
     _validate_upload(gpx_file, "gpx_file")
     _validate_upload(video_file, "video_file")
 
-    gpx_bytes = _read_upload(gpx_file)
-    video_bytes = _read_upload(video_file)
-    if not gpx_bytes:
-        raise HTTPException(status_code=400, detail="GPX file is empty")
-    if not video_bytes:
-        raise HTTPException(status_code=400, detail="Video file is empty")
-
     with tempfile.NamedTemporaryFile(suffix=".gpx") as gpx_input, tempfile.NamedTemporaryFile(
         suffix=".gpx"
     ) as gpx_output, tempfile.NamedTemporaryFile(suffix=".mp4") as video_input:
-        gpx_input.write(gpx_bytes)
-        gpx_input.flush()
-        video_input.write(video_bytes)
-        video_input.flush()
+        _write_upload_to_file(gpx_file, gpx_input, "GPX")
+        _write_upload_to_file(video_file, video_input, "Video")
 
         try:
             start_dt, end_dt = get_video_times(video_input.name)
