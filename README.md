@@ -33,11 +33,38 @@ sudo apt-get install -y ffmpeg  # Ubuntu/Debian
 Run the splitter by providing the video file and the GPX file. Optionally set an output path.
 
 ```bash
-python3 backend/gpx_splitter.py /path/to/video.MP4 /path/to/track.gpx \
+python3 backend/src/gpx_helper/gpx_splitter.py /path/to/video.MP4 /path/to/track.gpx \
   -o /path/to/track.cropped.gpx
 ```
 
 If `-o/--output` is omitted, the script writes to `<input>.cropped.gpx` next to the original GPX file.
+
+## Backend API (foundation)
+The backend now includes a FastAPI service that exposes endpoints for trimming GPX files by a known time window or by
+matching a video file. Start the API from the repository root:
+
+```bash
+cd backend
+poetry install
+poetry run uvicorn gpx_helper.api.main:app --reload
+```
+
+Example requests:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/gpx/trim-by-time \
+  -F gpx_file=@/path/to/track.gpx \
+  -F start_time=2025-11-02T17:02:23Z \
+  -F end_time=2025-11-02T17:07:00Z \
+  --output trimmed.gpx
+```
+
+```bash
+curl -X POST http://localhost:8000/api/v1/gpx/trim-by-video \
+  -F gpx_file=@/path/to/track.gpx \
+  -F video_file=@/path/to/video.MP4 \
+  --output trimmed.gpx
+```
 
 ## Animate a GPX route on a map
 `map_animator.py` turns a GPX track into an MP4 that draws the route over OpenStreetMap tiles. It converts coordinates to Web Mercator
@@ -46,7 +73,7 @@ If `-o/--output` is omitted, the script writes to `<input>.cropped.gpx` next to 
 Usage:
 
 ```bash
-python3 backend/map_animator.py route.gpx 45 1920x1080 -o route.mp4
+python3 backend/src/gpx_helper/map_animator.py route.gpx 45 1920x1080 -o route.mp4
 ```
 
 - `route.gpx`: input GPX track

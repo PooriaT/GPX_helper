@@ -4,12 +4,16 @@ version = "0.1.0"
 description = ""
 authors = ["PooriaT <pooria_taghdiri@hotmail.com>"]
 readme = "README.md"
+packages = [{ include = "gpx_helper", from = "src" }]
 
 [tool.poetry.dependencies]
 python = "^3.13"
 gpxpy = "^1.6.2"
 matplotlib = "^3.10.7"
 contextily = "^1.7.0"
+fastapi = "^0.115.0"
+uvicorn = "^0.30.0"
+python-multipart = "^0.0.9"
 
 
 [build-system]
