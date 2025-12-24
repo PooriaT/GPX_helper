@@ -51,12 +51,12 @@
     <section class="panel highlights" id="about">
       <div>
         <h2>About GPX Helper</h2>
-        <p>Built for creators who need clean tracks fast without extra tooling.</p>
+        <p>GPX Helper trims and exports tracks so video projects stay in sync.</p>
       </div>
       <ul>
-        <li>Automated alignment between footage and GPX timestamps.</li>
-        <li>Friendly defaults with clear logging for edge cases.</li>
-        <li>Exports that drop into mapping or editing workflows.</li>
+        <li>Align GPX with footage timestamps.</li>
+        <li>Trim confidently with clear logs.</li>
+        <li>Export routes ready for maps or edits.</li>
       </ul>
     </section>
 
