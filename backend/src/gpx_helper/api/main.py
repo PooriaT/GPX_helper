@@ -37,8 +37,8 @@ def _parse_iso_datetime(value: str) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
-def _validate_upload(upload: UploadFile, label: str) -> None:
-    if not upload.filename:
+def _validate_upload(upload: UploadFile | None, label: str) -> None:
+    if upload is None or not upload.filename:
         raise HTTPException(status_code=400, detail=f"Missing {label} filename")
 
 
@@ -82,7 +82,7 @@ def capabilities() -> JSONResponse:
 
 @app.post("/api/v1/gpx/trim-by-time")
 def trim_by_time(
-    gpx_file: UploadFile = File(...),
+    gpx_file: UploadFile | None = File(None),
     start_time: str = Form(...),
     end_time: str = Form(...),
 ) -> StreamingResponse:
@@ -108,8 +108,8 @@ def trim_by_time(
 
 @app.post("/api/v1/gpx/trim-by-video")
 def trim_by_video(
-    gpx_file: UploadFile = File(...),
-    video_file: UploadFile = File(...),
+    gpx_file: UploadFile | None = File(None),
+    video_file: UploadFile | None = File(None),
 ) -> StreamingResponse:
     _validate_upload(gpx_file, "gpx_file")
     _validate_upload(video_file, "video_file")
