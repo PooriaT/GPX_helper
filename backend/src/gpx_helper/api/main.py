@@ -9,6 +9,7 @@ from typing import BinaryIO
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
+from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from gpx_helper.gpx_splitter import crop_gpx_by_time, get_video_times
 
@@ -37,12 +38,13 @@ def _parse_iso_datetime(value: str) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
-def _validate_upload(upload: UploadFile | None, label: str) -> None:
-    if upload is None or not upload.filename:
+def _validate_upload(upload: UploadFile | str | None, label: str) -> StarletteUploadFile:
+    if not isinstance(upload, StarletteUploadFile) or not upload.filename:
         raise HTTPException(status_code=400, detail=f"Missing {label} filename")
+    return upload
 
 
-def _write_upload_to_file(upload: UploadFile, dest_file: BinaryIO, label: str) -> None:
+def _write_upload_to_file(upload: StarletteUploadFile, dest_file: BinaryIO, label: str) -> None:
     upload.file.seek(0)
     first_chunk = upload.file.read(1024 * 1024)
     if not first_chunk:
@@ -82,11 +84,11 @@ def capabilities() -> JSONResponse:
 
 @app.post("/api/v1/gpx/trim-by-time")
 def trim_by_time(
-    gpx_file: UploadFile | None = File(None),
+    gpx_file: UploadFile | str | None = File(None),
     start_time: str = Form(...),
     end_time: str = Form(...),
 ) -> StreamingResponse:
-    _validate_upload(gpx_file, "gpx_file")
+    gpx_file = _validate_upload(gpx_file, "gpx_file")
 
     try:
         start_dt = _parse_iso_datetime(start_time)
@@ -108,11 +110,11 @@ def trim_by_time(
 
 @app.post("/api/v1/gpx/trim-by-video")
 def trim_by_video(
-    gpx_file: UploadFile | None = File(None),
-    video_file: UploadFile | None = File(None),
+    gpx_file: UploadFile | str | None = File(None),
+    video_file: UploadFile | str | None = File(None),
 ) -> StreamingResponse:
-    _validate_upload(gpx_file, "gpx_file")
-    _validate_upload(video_file, "video_file")
+    gpx_file = _validate_upload(gpx_file, "gpx_file")
+    video_file = _validate_upload(video_file, "video_file")
 
     with tempfile.NamedTemporaryFile(suffix=".gpx") as gpx_input, tempfile.NamedTemporaryFile(
         suffix=".gpx"
