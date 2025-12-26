@@ -255,13 +255,6 @@
     }
   }
 
-  function statusTone(state) {
-    if (state === 'success') return 'positive';
-    if (state === 'loading') return 'info';
-    if (state === 'warning') return 'warning';
-    if (state === 'error') return 'danger';
-    return 'muted';
-  }
 </script>
 
 <svelte:head>
@@ -273,35 +266,21 @@
 
 <div class="page-shell">
   <header class="hero">
-    <div class="hero__copy">
-      <p class="pill">GPX Helper</p>
-      <h1>Run the GPX Helper API from the browser.</h1>
-      <p class="lede">
-        Upload a GPX track, pair it with video metadata, and export trimmed tracks or map animations without leaving the
-        page.
-      </p>
-    </div>
+    <h1>Run the GPX Helper API from the browser.</h1>
+    <p class="lede">
+      Upload a GPX track, pair it with video metadata, and export trimmed tracks or map animations without leaving the
+      page.
+    </p>
   </header>
 
   <main class="content">
     <section class="tool-grid">
       <article class="tool-card">
-        <div class="panel__header">
-          <div>
-            <p class="eyebrow">Trim by timestamps</p>
-            <h3>Trim GPX by time window</h3>
-            <p class="muted-text">Send your GPX file with start and end times to crop the track.</p>
-          </div>
-          <span class={`chip ${statusTone(trimByTime.status)}`}>
-            {trimByTime.status === 'idle'
-              ? 'Waiting'
-              : trimByTime.status === 'loading'
-                ? 'Processing...'
-                : trimByTime.status === 'success'
-                  ? 'Done'
-                  : 'Needs attention'}
-          </span>
-        </div>
+        <header class="section-header">
+          <p class="section-label">Trim by timestamps</p>
+          <h2>Trim GPX by time window</h2>
+          <p class="muted-text">Send your GPX file with start and end times to crop the track.</p>
+        </header>
 
         <form class="form-grid" on:submit|preventDefault={submitTrimByTime}>
           <label>
@@ -339,22 +318,11 @@
       </article>
 
       <article class="tool-card">
-        <div class="panel__header">
-          <div>
-            <p class="eyebrow">Video-assisted trim</p>
-            <h3>Trim GPX using video</h3>
-            <p class="muted-text">Upload the GPX and companion video to crop the track to the clip duration.</p>
-          </div>
-          <span class={`chip ${statusTone(trimByVideo.status)}`}>
-            {trimByVideo.status === 'idle'
-              ? 'Waiting'
-              : trimByVideo.status === 'loading'
-                ? 'Processing...'
-                : trimByVideo.status === 'success'
-                  ? 'Done'
-                  : 'Needs attention'}
-          </span>
-        </div>
+        <header class="section-header">
+          <p class="section-label">Video-assisted trim</p>
+          <h2>Trim GPX using video</h2>
+          <p class="muted-text">Upload the GPX and companion video to crop the track to the clip duration.</p>
+        </header>
 
         <form class="form-grid" on:submit|preventDefault={submitTrimByVideo}>
           <label>
@@ -395,22 +363,11 @@
     </section>
 
     <section class="tool-card wide">
-      <div class="panel__header">
-        <div>
-          <p class="eyebrow">Route animation</p>
-          <h3>Render map animation</h3>
-          <p class="muted-text">Send your GPX to the API to render an MP4 route animation.</p>
-        </div>
-        <span class={`chip ${statusTone(mapAnimation.status)}`}>
-          {mapAnimation.status === 'idle'
-            ? 'Waiting'
-            : mapAnimation.status === 'loading'
-              ? 'Processing...'
-              : mapAnimation.status === 'success'
-                ? 'Done'
-                : 'Needs attention'}
-        </span>
-      </div>
+      <header class="section-header">
+        <p class="section-label">Route animation</p>
+        <h2>Render map animation</h2>
+        <p class="muted-text">Send your GPX to the API to render an MP4 route animation.</p>
+      </header>
 
       <form class="form-grid" on:submit|preventDefault={submitMapAnimation}>
         <label>
