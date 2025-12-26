@@ -9,6 +9,7 @@
     startLocal: '',
     endLocal: '',
     gpxFile: null,
+    videoFile: null,
     status: 'idle',
     error: '',
     downloadUrl: '',
@@ -85,6 +86,48 @@
       reader.onload = () => resolve(reader.result);
       reader.onerror = () => reject(reader.error || new Error('Unable to read file.'));
       reader.readAsText(file);
+    });
+  }
+
+  function padToTwo(value) {
+    return String(value).padStart(2, '0');
+  }
+
+  function toLocalDateTimeValue(date) {
+    return [
+      date.getFullYear(),
+      padToTwo(date.getMonth() + 1),
+      padToTwo(date.getDate())
+    ].join('-') +
+      'T' +
+      [
+        padToTwo(date.getHours()),
+        padToTwo(date.getMinutes()),
+        padToTwo(date.getSeconds())
+      ].join(':');
+  }
+
+  function loadVideoDuration(file) {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      const objectUrl = URL.createObjectURL(file);
+      const cleanup = () => {
+        URL.revokeObjectURL(objectUrl);
+      };
+      video.onloadedmetadata = () => {
+        cleanup();
+        if (Number.isFinite(video.duration)) {
+          resolve(video.duration);
+        } else {
+          reject(new Error('Unable to read video duration.'));
+        }
+      };
+      video.onerror = () => {
+        cleanup();
+        reject(new Error('Unable to read video metadata.'));
+      };
+      video.src = objectUrl;
     });
   }
 
@@ -294,6 +337,32 @@
             />
           </label>
           <label>
+            Optional video file
+            <input
+              type="file"
+              accept="video/*"
+              on:change={async (event) => {
+                const file = event.target.files?.[0] ?? null;
+                trimByTime = { ...trimByTime, videoFile: file };
+                if (!file) return;
+                try {
+                  const duration = await loadVideoDuration(file);
+                  const end = new Date(file.lastModified);
+                  const start = new Date(end.getTime() - duration * 1000);
+                  trimByTime = {
+                    ...trimByTime,
+                    videoFile: file,
+                    startLocal: toLocalDateTimeValue(start),
+                    endLocal: toLocalDateTimeValue(end),
+                    error: ''
+                  };
+                } catch (error) {
+                  trimByTime = { ...trimByTime, error: parseError(error, 'Unable to read video metadata.') };
+                }
+              }}
+            />
+          </label>
+          <label>
             Start time
             <input type="datetime-local" bind:value={trimByTime.startLocal} required />
           </label>
@@ -303,7 +372,10 @@
           </label>
           <div class="form-actions">
             <button type="submit">Trim track</button>
-            <p class="hint">Times are converted to UTC before sending to the API.</p>
+            <p class="hint">
+              Add a video to auto-fill the end time from the file timestamp and the start time as end minus duration.
+              Times are converted to UTC before sending to the API.
+            </p>
           </div>
         </form>
         {#if trimByTime.error}
