@@ -90,6 +90,34 @@
     return fallback;
   }
 
+  function readFileText(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error || new Error('Unable to read file.'));
+      reader.readAsText(file);
+    });
+  }
+
+  async function parseGpxDuration(file) {
+    if (!file) return null;
+    const text = await readFileText(file);
+    if (typeof text !== 'string') return null;
+
+    const timeMatches = [...text.matchAll(/<time>([^<]+)<\/time>/g)];
+    const timestamps = timeMatches
+      .map((match) => new Date(match[1]))
+      .filter((timestamp) => !Number.isNaN(timestamp.getTime()));
+
+    if (timestamps.length < 2) return null;
+    const first = timestamps[0];
+    const last = timestamps[timestamps.length - 1];
+    const diffMs = last.getTime() - first.getTime();
+    if (diffMs <= 0) return null;
+
+    return Math.max(1, Math.round(diffMs / 1000));
+  }
+
   async function refreshApiStatus() {
     healthStatus = 'checking';
     healthMessage = 'Checking availability...';
@@ -246,6 +274,12 @@
     try {
       if (!mapAnimation.gpxFile) {
         throw new Error('Upload a GPX track to animate.');
+      }
+      if (!mapAnimation.durationSeconds) {
+        const parsedDuration = await parseGpxDuration(mapAnimation.gpxFile);
+        if (parsedDuration) {
+          mapAnimation = { ...mapAnimation, durationSeconds: parsedDuration };
+        }
       }
       if (!mapAnimation.durationSeconds || mapAnimation.durationSeconds <= 0) {
         throw new Error('Duration must be greater than zero.');
@@ -488,8 +522,17 @@
           <input
             type="file"
             accept=".gpx,application/gpx+xml"
-            on:change={(event) =>
-              (mapAnimation = { ...mapAnimation, gpxFile: event.target.files?.[0] ?? null })}
+            on:change={async (event) => {
+              const file = event.target.files?.[0] ?? null;
+              let durationSeconds = mapAnimation.durationSeconds;
+              if (file) {
+                const parsedDuration = await parseGpxDuration(file);
+                if (parsedDuration) {
+                  durationSeconds = parsedDuration;
+                }
+              }
+              mapAnimation = { ...mapAnimation, gpxFile: file, durationSeconds };
+            }}
             required
           />
         </label>
@@ -514,7 +557,7 @@
         </label>
         <div class="form-actions">
           <button type="submit">Render animation</button>
-          <p class="hint">The backend renders a 30 fps MP4 for the selected resolution.</p>
+          <p class="hint">Duration auto-fills from the GPX timestamps when available.</p>
         </div>
       </form>
       {#if mapAnimation.error}
