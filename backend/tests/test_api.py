@@ -50,6 +50,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(payload["version"], "v1")
         self.assertIn("POST /api/v1/gpx/trim-by-time", payload["endpoints"])
         self.assertIn("POST /api/v1/gpx/trim-by-video", payload["endpoints"])
+        self.assertIn("POST /api/v1/gpx/map-animate", payload["endpoints"])
 
     def test_trim_by_time_success(self) -> None:
         files = {
@@ -108,6 +109,56 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["content-type"], "application/gpx+xml")
         self.assertEqual(_count_trkpts(response.content), 3)
+
+    def test_map_animation_success(self) -> None:
+        files = {
+            "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
+        }
+        data = {
+            "duration_seconds": "5",
+            "resolution": "640x480",
+        }
+        fake_video = b"mp4-bytes"
+
+        def _fake_animation(xs, ys, frame_indices, total_frames, fps, width_px, height_px, output_path):
+            with open(output_path, "wb") as f:
+                f.write(fake_video)
+
+        with mock.patch("gpx_helper.api.main.create_animation", side_effect=_fake_animation):
+            response = self.client.post("/api/v1/gpx/map-animate", files=files, data=data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["content-type"], "video/mp4")
+        self.assertEqual(response.content, fake_video)
+        self.assertIn("attachment; filename=route.mp4", response.headers["content-disposition"])
+
+    def test_map_animation_invalid_resolution(self) -> None:
+        files = {
+            "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
+        }
+        data = {
+            "duration_seconds": "5",
+            "resolution": "not-a-size",
+        }
+
+        response = self.client.post("/api/v1/gpx/map-animate", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("resolution", response.json()["detail"])
+
+    def test_map_animation_invalid_duration(self) -> None:
+        files = {
+            "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
+        }
+        data = {
+            "duration_seconds": "0",
+            "resolution": "640x480",
+        }
+
+        response = self.client.post("/api/v1/gpx/map-animate", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("duration_seconds", response.json()["detail"])
 
 
 if __name__ == "__main__":
