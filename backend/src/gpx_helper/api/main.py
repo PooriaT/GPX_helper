@@ -12,6 +12,13 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from gpx_helper.gpx_splitter import crop_gpx_by_time, get_video_times
+from gpx_helper.map_animator import (
+    create_animation,
+    latlon_to_web_mercator,
+    load_gpx_points,
+    parse_resolution,
+    prepare_animation_data,
+)
 
 API_VERSION = "v1"
 DEFAULT_ALLOWED_ORIGINS = (
@@ -56,12 +63,12 @@ def _write_upload_to_file(upload: StarletteUploadFile, dest_file: BinaryIO, labe
 
 
 def _stream_gpx(payload: bytes, filename: str) -> StreamingResponse:
+    return _stream_payload(payload, filename, "application/gpx+xml")
+
+
+def _stream_payload(payload: bytes, filename: str, media_type: str) -> StreamingResponse:
     headers = {"Content-Disposition": f"attachment; filename={filename}"}
-    return StreamingResponse(
-        BytesIO(payload),
-        media_type="application/gpx+xml",
-        headers=headers,
-    )
+    return StreamingResponse(BytesIO(payload), media_type=media_type, headers=headers)
 
 
 @app.get("/api/v1/health")
@@ -77,6 +84,7 @@ def capabilities() -> JSONResponse:
             "endpoints": [
                 "POST /api/v1/gpx/trim-by-time",
                 "POST /api/v1/gpx/trim-by-video",
+                "POST /api/v1/gpx/map-animate",
             ],
         }
     )
@@ -130,3 +138,47 @@ def trim_by_video(
 
         gpx_output.seek(0)
         return _stream_gpx(gpx_output.read(), "trimmed.gpx")
+
+
+@app.post("/api/v1/gpx/map-animate")
+def animate_gpx_route(
+    gpx_file: UploadFile | str | None = File(None),
+    duration_seconds: float = Form(...),
+    resolution: str = Form(...),
+) -> StreamingResponse:
+    gpx_file = _validate_upload(gpx_file, "gpx_file")
+
+    if duration_seconds <= 0:
+        raise HTTPException(status_code=400, detail="duration_seconds must be positive")
+
+    try:
+        width_px, height_px = parse_resolution(resolution)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    with tempfile.NamedTemporaryFile(suffix=".gpx") as gpx_input, tempfile.NamedTemporaryFile(
+        suffix=".mp4"
+    ) as video_output:
+        _write_upload_to_file(gpx_file, gpx_input, "GPX")
+
+        try:
+            lats, lons = load_gpx_points(gpx_input.name)
+            xs, ys = latlon_to_web_mercator(lats, lons)
+            frame_indices, total_frames, fps = prepare_animation_data(
+                xs, ys, duration_seconds, fps=30
+            )
+            create_animation(
+                xs,
+                ys,
+                frame_indices,
+                total_frames,
+                fps,
+                width_px,
+                height_px,
+                video_output.name,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        video_output.seek(0)
+        return _stream_payload(video_output.read(), "route.mp4", "video/mp4")

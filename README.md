@@ -7,6 +7,7 @@ Utilities for aligning GoPro (or other camera) video timestamps with GPX tracks.
 - Matches GPX track points closest to the video start/end times and writes a cropped GPX.
 - Falls back to file modification time when metadata is missing, with clear warnings.
 - Works with GPX files that include timezone-aware timestamps (UTC recommended).
+- Renders GPX tracks into MP4 map animations with OpenStreetMap tiles.
 
 ## Requirements
 - Python 3.8+
@@ -64,6 +65,14 @@ curl -X POST http://localhost:8000/api/v1/gpx/trim-by-video \
   -F gpx_file=@/path/to/track.gpx \
   -F video_file=@/path/to/video.MP4 \
   --output trimmed.gpx
+```
+
+```bash
+curl -X POST http://localhost:8000/api/v1/gpx/map-animate \
+  -F gpx_file=@/path/to/track.gpx \
+  -F duration_seconds=45 \
+  -F resolution=1920x1080 \
+  --output route.mp4
 ```
 
 ## Animate a GPX route on a map
