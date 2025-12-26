@@ -1,16 +1,9 @@
 <script>
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy } from 'svelte';
 
   const DEFAULT_API_BASE = (import.meta.env.VITE_API_BASE ?? 'http://localhost:8000').replace(/\/$/, '');
 
-  let apiBaseInput = DEFAULT_API_BASE;
   let apiBase = DEFAULT_API_BASE;
-
-  let healthStatus = 'checking';
-  let healthMessage = 'Looking for the API...';
-  let capabilities = [];
-  let apiVersion = '';
-  let capabilitiesError = '';
 
   let trimByTime = {
     startLocal: '',
@@ -45,10 +38,6 @@
   };
 
   const resolutionPresets = ['1920x1080', '1280x720', '1024x768', '1024x1024'];
-
-  onMount(() => {
-    refreshApiStatus();
-  });
 
   onDestroy(() => {
     [trimByTime, trimByVideo, mapAnimation].forEach((state) => {
@@ -116,47 +105,6 @@
     if (diffMs <= 0) return null;
 
     return Math.max(1, Math.round(diffMs / 1000));
-  }
-
-  async function refreshApiStatus() {
-    healthStatus = 'checking';
-    healthMessage = 'Checking availability...';
-    capabilitiesError = '';
-
-    try {
-      const healthResponse = await fetch(`${apiBase}/api/v1/health`);
-      if (!healthResponse.ok) {
-        throw new Error(`Health request failed (${healthResponse.status})`);
-      }
-      const body = await healthResponse.json();
-      healthStatus = body?.status === 'ok' ? 'ready' : 'warning';
-      healthMessage = body?.service ? `Online: ${body.service}` : 'Health endpoint responded';
-    } catch (error) {
-      healthStatus = 'error';
-      healthMessage = parseError(error, 'Could not reach the API');
-      capabilities = [];
-      apiVersion = '';
-      return;
-    }
-
-    try {
-      const capsResponse = await fetch(`${apiBase}/api/v1/capabilities`);
-      if (!capsResponse.ok) {
-        throw new Error(`Capabilities request failed (${capsResponse.status})`);
-      }
-      const body = await capsResponse.json();
-      capabilities = body?.endpoints ?? [];
-      apiVersion = body?.version ?? '';
-    } catch (error) {
-      capabilities = [];
-      apiVersion = '';
-      capabilitiesError = parseError(error, 'Could not load capabilities');
-    }
-  }
-
-  function applyApiBase() {
-    apiBase = apiBaseInput.trim().replace(/\/$/, '');
-    refreshApiStatus();
   }
 
   async function requestFile(path, formData, fallbackFilename) {
@@ -308,7 +256,7 @@
   }
 
   function statusTone(state) {
-    if (state === 'success' || state === 'ready') return 'positive';
+    if (state === 'success') return 'positive';
     if (state === 'loading') return 'info';
     if (state === 'warning') return 'warning';
     if (state === 'error') return 'danger';
@@ -332,62 +280,10 @@
         Upload a GPX track, pair it with video metadata, and export trimmed tracks or map animations without leaving the
         page.
       </p>
-      <div class="status-bar">
-        <span class={`chip ${statusTone(healthStatus)}`}>Health: {healthMessage}</span>
-        {#if apiVersion}
-          <span class="chip muted">API {apiVersion}</span>
-        {/if}
-        <span class="chip muted">Base: {apiBase}</span>
-      </div>
     </div>
-
-    <form class="api-card" on:submit|preventDefault={applyApiBase}>
-      <div class="api-card__header">
-        <p class="eyebrow">API connection</p>
-        <button class="ghost" type="button" on:click={refreshApiStatus}>Refresh</button>
-      </div>
-      <label for="api-base">API base URL</label>
-      <div class="input-row">
-        <input
-          id="api-base"
-          name="api-base"
-          type="url"
-          placeholder="http://localhost:8000"
-          bind:value={apiBaseInput}
-          required
-        />
-        <button type="submit">Connect</button>
-      </div>
-      <p class="hint">Defaults to the local FastAPI server at http://localhost:8000.</p>
-      <div class="api-status">
-        <span class={`chip ${statusTone(healthStatus)}`}>{healthMessage}</span>
-        {#if capabilitiesError}
-          <p class="error" role="alert">{capabilitiesError}</p>
-        {/if}
-      </div>
-    </form>
   </header>
 
   <main class="content">
-    <section class="panel">
-      <div class="panel__header">
-        <div>
-          <p class="eyebrow">Endpoints</p>
-          <h2>Available API routes</h2>
-        </div>
-        <button class="ghost" type="button" on:click={refreshApiStatus}>Re-check</button>
-      </div>
-      {#if capabilities.length}
-        <ul class="endpoint-list">
-          {#each capabilities as endpoint}
-            <li>{endpoint}</li>
-          {/each}
-        </ul>
-      {:else}
-        <p class="muted-text">Capabilities load after the API responds.</p>
-      {/if}
-    </section>
-
     <section class="tool-grid">
       <article class="tool-card">
         <div class="panel__header">
