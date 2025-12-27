@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
-from gpx_helper.gpx_splitter import crop_gpx_by_time, get_video_times
+from gpx_helper.gpx_splitter import crop_gpx_by_time
 from gpx_helper.map_animator import (
     create_animation,
     latlon_to_web_mercator,
@@ -119,19 +119,29 @@ def trim_by_time(
 @app.post("/api/v1/gpx/trim-by-video")
 def trim_by_video(
     gpx_file: UploadFile | str | None = File(None),
-    video_file: UploadFile | str | None = File(None),
+    start_time: str = Form(...),
+    end_time: str = Form(...),
+    duration_seconds: float = Form(...),
 ) -> StreamingResponse:
     gpx_file = _validate_upload(gpx_file, "gpx_file")
-    video_file = _validate_upload(video_file, "video_file")
+
+    if duration_seconds <= 0:
+        raise HTTPException(status_code=400, detail="duration_seconds must be positive")
+
+    try:
+        start_dt = _parse_iso_datetime(start_time)
+        end_dt = _parse_iso_datetime(end_time)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if start_dt >= end_dt:
+        raise HTTPException(status_code=400, detail="start_time must be before end_time")
 
     with tempfile.NamedTemporaryFile(suffix=".gpx") as gpx_input, tempfile.NamedTemporaryFile(
         suffix=".gpx"
-    ) as gpx_output, tempfile.NamedTemporaryFile(suffix=".mp4") as video_input:
+    ) as gpx_output:
         _write_upload_to_file(gpx_file, gpx_input, "GPX")
-        _write_upload_to_file(video_file, video_input, "Video")
-
         try:
-            start_dt, end_dt = get_video_times(video_input.name)
             crop_gpx_by_time(gpx_input.name, start_dt, end_dt, gpx_output.name)
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

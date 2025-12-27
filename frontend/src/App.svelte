@@ -20,6 +20,9 @@
   let trimByVideo = {
     gpxFile: null,
     videoFile: null,
+    startLocal: '',
+    endLocal: '',
+    durationSeconds: null,
     status: 'idle',
     error: '',
     downloadUrl: '',
@@ -131,6 +134,13 @@
     });
   }
 
+  async function deriveVideoTimes(file) {
+    const durationSeconds = await loadVideoDuration(file);
+    const end = new Date(file.lastModified);
+    const start = new Date(end.getTime() - durationSeconds * 1000);
+    return { durationSeconds, start, end };
+  }
+
   async function parseGpxDuration(file) {
     if (!file) return null;
     const text = await readFileText(file);
@@ -231,9 +241,18 @@
         throw new Error('Upload both the GPX track and the matching video.');
       }
 
+      const { durationSeconds, start, end } = await deriveVideoTimes(trimByVideo.videoFile);
+      if (start >= end) {
+        throw new Error('Video metadata produces an invalid time range.');
+      }
+      const startIso = start.toISOString();
+      const endIso = end.toISOString();
+
       const formData = new FormData();
       formData.append('gpx_file', trimByVideo.gpxFile);
-      formData.append('video_file', trimByVideo.videoFile);
+      formData.append('start_time', startIso);
+      formData.append('end_time', endIso);
+      formData.append('duration_seconds', String(durationSeconds));
 
       const { blob, filename } = await requestFile('/api/v1/gpx/trim-by-video', formData, 'trimmed.gpx');
       const downloadUrl = URL.createObjectURL(blob);
@@ -242,7 +261,10 @@
         status: 'success',
         downloadUrl,
         filename,
-        message: `Trimmed ${trimByVideo.gpxFile.name} using ${trimByVideo.videoFile.name}.`
+        startLocal: toLocalDateTimeValue(start),
+        endLocal: toLocalDateTimeValue(end),
+        durationSeconds,
+        message: `Trimmed ${trimByVideo.gpxFile.name} using ${trimByVideo.videoFile.name} metadata.`
       };
     } catch (error) {
       trimByVideo = { ...trimByVideo, status: 'error', error: parseError(error) };
@@ -346,9 +368,7 @@
                 trimByTime = { ...trimByTime, videoFile: file };
                 if (!file) return;
                 try {
-                  const duration = await loadVideoDuration(file);
-                  const end = new Date(file.lastModified);
-                  const start = new Date(end.getTime() - duration * 1000);
+                  const { start, end } = await deriveVideoTimes(file);
                   trimByTime = {
                     ...trimByTime,
                     videoFile: file,
@@ -393,7 +413,10 @@
         <header class="section-header">
           <p class="section-label">Video-assisted trim</p>
           <h2>Trim GPX using video</h2>
-          <p class="muted-text">Upload the GPX and companion video to crop the track to the clip duration.</p>
+          <p class="muted-text">
+            Upload the GPX and companion video to crop the track to the clip duration. Video metadata stays in your
+            browser.
+          </p>
         </header>
 
         <form class="form-grid" on:submit|preventDefault={submitTrimByVideo}>
@@ -412,14 +435,40 @@
             <input
               type="file"
               accept="video/*"
-              on:change={(event) =>
-                (trimByVideo = { ...trimByVideo, videoFile: event.target.files?.[0] ?? null })}
+              on:change={async (event) => {
+                const file = event.target.files?.[0] ?? null;
+                trimByVideo = {
+                  ...trimByVideo,
+                  videoFile: file,
+                  startLocal: '',
+                  endLocal: '',
+                  durationSeconds: null,
+                  error: ''
+                };
+                if (!file) return;
+                try {
+                  const { durationSeconds, start, end } = await deriveVideoTimes(file);
+                  trimByVideo = {
+                    ...trimByVideo,
+                    videoFile: file,
+                    startLocal: toLocalDateTimeValue(start),
+                    endLocal: toLocalDateTimeValue(end),
+                    durationSeconds,
+                    error: ''
+                  };
+                } catch (error) {
+                  trimByVideo = { ...trimByVideo, error: parseError(error, 'Unable to read video metadata.') };
+                }
+              }}
               required
             />
           </label>
           <div class="form-actions">
             <button type="submit">Trim with video</button>
-            <p class="hint">Uses metadata if available, otherwise falls back to file timestamps.</p>
+            <p class="hint">
+              Uses metadata if available, otherwise falls back to file timestamps. Only the calculated timestamps are
+              sent to the API.
+            </p>
           </div>
         </form>
         {#if trimByVideo.error}
