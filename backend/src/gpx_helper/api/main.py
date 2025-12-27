@@ -25,6 +25,7 @@ DEFAULT_ALLOWED_ORIGINS = (
     "http://localhost:5173",
     "http://localhost:4173",
 )
+MAX_UPLOAD_READ_BYTES = 1024 * 1024
 
 app = FastAPI(title="GPX Helper API", version=API_VERSION)
 app.add_middleware(
@@ -45,6 +46,21 @@ def _parse_iso_datetime(value: str) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
+def _parse_request_times(
+    start_time: str, end_time: str, *, enforce_order: bool = False
+) -> tuple[datetime, datetime]:
+    try:
+        start_dt = _parse_iso_datetime(start_time)
+        end_dt = _parse_iso_datetime(end_time)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if enforce_order and start_dt >= end_dt:
+        raise HTTPException(status_code=400, detail="start_time must be before end_time")
+
+    return start_dt, end_dt
+
+
 def _validate_upload(upload: UploadFile | str | None, label: str) -> StarletteUploadFile:
     if not isinstance(upload, StarletteUploadFile) or not upload.filename:
         raise HTTPException(status_code=400, detail=f"Missing {label} filename")
@@ -53,7 +69,7 @@ def _validate_upload(upload: UploadFile | str | None, label: str) -> StarletteUp
 
 def _write_upload_to_file(upload: StarletteUploadFile, dest_file: BinaryIO, label: str) -> None:
     upload.file.seek(0)
-    first_chunk = upload.file.read(1024 * 1024)
+    first_chunk = upload.file.read(MAX_UPLOAD_READ_BYTES)
     if not first_chunk:
         raise HTTPException(status_code=400, detail=f"{label} file is empty")
     dest_file.write(first_chunk)
@@ -97,12 +113,7 @@ def trim_by_time(
     end_time: str = Form(...),
 ) -> StreamingResponse:
     gpx_file = _validate_upload(gpx_file, "gpx_file")
-
-    try:
-        start_dt = _parse_iso_datetime(start_time)
-        end_dt = _parse_iso_datetime(end_time)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    start_dt, end_dt = _parse_request_times(start_time, end_time)
 
     with tempfile.NamedTemporaryFile(suffix=".gpx") as input_file, tempfile.NamedTemporaryFile(
         suffix=".gpx"
@@ -127,15 +138,7 @@ def trim_by_video(
 
     if duration_seconds <= 0:
         raise HTTPException(status_code=400, detail="duration_seconds must be positive")
-
-    try:
-        start_dt = _parse_iso_datetime(start_time)
-        end_dt = _parse_iso_datetime(end_time)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    if start_dt >= end_dt:
-        raise HTTPException(status_code=400, detail="start_time must be before end_time")
+    start_dt, end_dt = _parse_request_times(start_time, end_time, enforce_order=True)
 
     with tempfile.NamedTemporaryFile(suffix=".gpx") as gpx_input, tempfile.NamedTemporaryFile(
         suffix=".gpx"

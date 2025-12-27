@@ -10,9 +10,10 @@ Requirements:
     ffmpeg (for MP4 encoding)
 """
 
-import os
-import math
 import argparse
+import math
+import os
+from typing import Iterable
 
 import gpxpy
 import gpxpy.gpx
@@ -20,8 +21,12 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, FFMpegWriter
 import contextily as cx
 
+EARTH_RADIUS_METERS = 6_378_137.0
+MAX_MERCATOR_LAT = 85.05112878
+DEFAULT_FPS = 30
 
-def parse_resolution(res_str):
+
+def parse_resolution(res_str: str) -> tuple[int, int]:
     """
     Parse resolution string like '1920x1080' or '1920,1080'.
     """
@@ -33,7 +38,7 @@ def parse_resolution(res_str):
     raise ValueError(f"Could not parse resolution: {res_str}")
 
 
-def load_gpx_points(gpx_path):
+def load_gpx_points(gpx_path: str) -> tuple[list[float], list[float]]:
     """
     Load GPX and return lists of latitudes and longitudes.
     """
@@ -56,26 +61,30 @@ def load_gpx_points(gpx_path):
     return lats, lons
 
 
-def latlon_to_web_mercator(lats, lons):
+def latlon_to_web_mercator(lats: Iterable[float], lons: Iterable[float]) -> tuple[list[float], list[float]]:
     """
     Convert WGS84 lat/lon (degrees) to Web Mercator (EPSG:3857) x/y (meters).
     """
-    R = 6378137.0  # Earth radius in meters
-    xs = []
-    ys = []
+    xs: list[float] = []
+    ys: list[float] = []
     for lat, lon in zip(lats, lons):
         lon_rad = math.radians(lon)
         lat_rad = math.radians(lat)
-        x = R * lon_rad
+        x = EARTH_RADIUS_METERS * lon_rad
         # Clamp latitude for Mercator projection
-        lat_rad = max(min(lat_rad, math.radians(85.05112878)), math.radians(-85.05112878))
-        y = R * math.log(math.tan(math.pi / 4.0 + lat_rad / 2.0))
+        lat_rad = max(
+            min(lat_rad, math.radians(MAX_MERCATOR_LAT)),
+            math.radians(-MAX_MERCATOR_LAT),
+        )
+        y = EARTH_RADIUS_METERS * math.log(math.tan(math.pi / 4.0 + lat_rad / 2.0))
         xs.append(x)
         ys.append(y)
     return xs, ys
 
 
-def prepare_animation_data(xs, ys, duration_sec, fps=30):
+def prepare_animation_data(
+    xs: list[float], ys: list[float], duration_sec: float, fps: int = DEFAULT_FPS
+) -> tuple[list[int], int, int]:
     """
     Prepare per-frame indices along the route.
     """
@@ -98,8 +107,16 @@ def prepare_animation_data(xs, ys, duration_sec, fps=30):
     return frame_indices, total_frames, fps
 
 
-def create_animation(xs, ys, frame_indices,
-                     total_frames, fps, width_px, height_px, output_path):
+def create_animation(
+    xs: list[float],
+    ys: list[float],
+    frame_indices: list[int],
+    total_frames: int,
+    fps: int,
+    width_px: int,
+    height_px: int,
+    output_path: str,
+) -> None:
     """
     Create and save the animation as an MP4 file with OpenStreetMap basemap.
     """
@@ -202,7 +219,7 @@ def main():
     xs, ys = latlon_to_web_mercator(lats, lons)
 
     frame_indices, total_frames, fps = prepare_animation_data(
-        xs, ys, args.duration, fps=30
+        xs, ys, args.duration, fps=DEFAULT_FPS
     )
 
     create_animation(

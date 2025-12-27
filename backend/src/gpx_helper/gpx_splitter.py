@@ -1,20 +1,45 @@
 #!/usr/bin/env python3
 import argparse
-import subprocess
-import sys
 import os
 import re
+import subprocess
+import sys
 from datetime import datetime, timedelta, timezone
+from typing import Iterable
 import xml.etree.ElementTree as ET
 
 GPX_NS = "http://www.topografix.com/GPX/1/1"
 NSMAP = {"gpx": GPX_NS}
+EXIF_TAGS = (
+    "MediaCreateDate",
+    "CreateDate",
+    "MediaModifyDate",
+    "ModifyDate",
+    "MediaDuration",
+    "Duration",
+    "PlayDuration",
+)
 
 ET.register_namespace("", GPX_NS)
 ET.register_namespace("gpxtpx", "http://www.garmin.com/xmlschemas/TrackPointExtension/v1")
 ET.register_namespace("gpxx", "http://www.garmin.com/xmlschemas/GpxExtensions/v3")
 
-def run_exiftool(video_path, tags):
+
+def _parse_exif_output(output: str) -> dict[str, str]:
+    info: dict[str, str] = {}
+    for line in output.splitlines():
+        # Example line: "CreateDate                      : 2025:11:02 17:02:23"
+        if ":" not in line:
+            continue
+        tag_name, value = line.split(":", 1)
+        tag_name = tag_name.strip().replace(" ", "")
+        value = value.strip()
+        if value:
+            info[tag_name] = value
+    return info
+
+
+def run_exiftool(video_path: str, tags: Iterable[str]) -> dict[str, str]:
     """
     Run exiftool on video_path and return a dict {tag: value_string}.
     tags: list like ["CreateDate", "MediaCreateDate", "Duration", ...]
@@ -38,34 +63,21 @@ def run_exiftool(video_path, tags):
         print("ERROR running exiftool:", e.stderr, file=sys.stderr)
         return {}
 
-    info = {}
-    for line in result.stdout.splitlines():
-        # Example line: "CreateDate                      : 2025:11:02 17:02:23"
-        if ":" not in line:
-            continue
-        parts = line.split(":", 1)
-        tag_name = parts[0].strip().replace(" ", "")
-        value = parts[1].strip()
-        if value:
-            info[tag_name] = value
-    return info
+    return _parse_exif_output(result.stdout)
 
 
-def parse_exif_datetime(dt_str):
+def parse_exif_datetime(dt_str: str) -> datetime:
     """
     Parse exiftool datetime like "2025:11:02 17:02:23"
     Assume it is already UTC because of QuickTimeUTC=1.
     """
-    try:
-        # Handle datetime strings with or without timezone offset
-        if dt_str[-6] in ('+', '-'):
-            return datetime.strptime(dt_str, "%Y:%m:%d %H:%M:%S%z")
-        return datetime.strptime(dt_str, "%Y:%m:%d %H:%M:%S").replace(tzinfo=timezone.utc)
-    except ValueError:
-        raise
+    # Handle datetime strings with or without timezone offset
+    if dt_str[-6] in ("+", "-"):
+        return datetime.strptime(dt_str, "%Y:%m:%d %H:%M:%S%z")
+    return datetime.strptime(dt_str, "%Y:%m:%d %H:%M:%S").replace(tzinfo=timezone.utc)
 
 
-def parse_exif_duration(d_str):
+def parse_exif_duration(d_str: str) -> timedelta:
     """
     Parse exiftool duration like "0:04:34" or "0:04:34 (approx)".
     Return a timedelta.
@@ -81,16 +93,14 @@ def parse_exif_duration(d_str):
     return timedelta(hours=hours, minutes=minutes, seconds=seconds)
 
 
-def get_video_times(video_path):
+def get_video_times(video_path: str) -> tuple[datetime, datetime]:
     """
     Return (start_dt_utc, end_dt_utc) as aware datetimes in UTC.
 
     Primary method: exiftool.
     Fallback: file modification time via os.stat (assumed local time).
     """
-    tags = ["MediaCreateDate", "CreateDate", "MediaModifyDate", "ModifyDate",
-            "MediaDuration", "Duration", "PlayDuration"]
-    info = run_exiftool(video_path, tags)
+    info = run_exiftool(video_path, EXIF_TAGS)
 
     start_dt = None
     duration_td = None
@@ -128,7 +138,7 @@ def get_video_times(video_path):
     return start_dt, end_dt
 
 
-def parse_gpx_time(time_text):
+def parse_gpx_time(time_text: str) -> datetime:
     """
     Parse GPX time element content like "2025-11-02T17:02:23.000Z" to aware UTC datetime.
     """
@@ -138,7 +148,9 @@ def parse_gpx_time(time_text):
     return datetime.fromisoformat(time_text).astimezone(timezone.utc)
 
 
-def crop_gpx_by_time(gpx_path, start_dt, end_dt, output_path):
+def crop_gpx_by_time(
+    gpx_path: str, start_dt: datetime, end_dt: datetime, output_path: str
+) -> None:
     """
     Read GPX, crop <trkseg> to closest points between start_dt and end_dt.
     Save to output_path.
@@ -173,7 +185,7 @@ def crop_gpx_by_time(gpx_path, start_dt, end_dt, output_path):
     if not valid_indices:
         raise RuntimeError("No valid <time> elements in GPX track points")
 
-    def closest_index(target_dt):
+    def closest_index(target_dt: datetime) -> int | None:
         best_i = None
         best_diff = None
         for i in valid_indices:
@@ -207,7 +219,7 @@ def crop_gpx_by_time(gpx_path, start_dt, end_dt, output_path):
     tree.write(output_path, encoding="UTF-8", xml_declaration=True)
 
 
-def format_hms(dt):
+def format_hms(dt: datetime) -> str:
     """
     Return "HH:MM:SS" for a UTC datetime.
     """
