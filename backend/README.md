@@ -2,7 +2,7 @@
 
 This backend is a FastAPI service that exposes endpoints for working with GPX files.
 It accepts GPX uploads and trims the track data based on a requested time range or
-based on timestamps extracted from a companion video file.
+based on video metadata timestamps calculated by the client.
 
 ## How it works
 
@@ -12,13 +12,13 @@ The API is implemented in `backend/src/gpx_helper/api/main.py` and exposes:
 - `GET /api/v1/capabilities` to describe available endpoints.
 - `POST /api/v1/gpx/trim-by-time` to crop a GPX file to a provided time range.
 - `POST /api/v1/gpx/trim-by-video` to crop a GPX file based on the time range
-  extracted from an uploaded video.
+  provided by client-side video metadata.
 - `POST /api/v1/gpx/map-animate` to render a GPX track into an MP4 map animation
   using a requested duration and resolution.
 
 GPX trimming logic lives in `backend/src/gpx_helper/gpx_splitter.py`.
-The trim-by-video endpoint uses `get_video_times`, which reads video metadata via
-`exiftool` if it is available, then falls back to the file modification time.
+The trim-by-video endpoint expects the client to send start/end timestamps plus
+the video duration derived from metadata (for example, using the browser video tag).
 The map animation endpoint uses `backend/src/gpx_helper/map_animator.py`.
 
 ## Running the API locally
@@ -46,7 +46,9 @@ curl -X POST http://localhost:8000/api/v1/gpx/trim-by-time \
 ```bash
 curl -X POST http://localhost:8000/api/v1/gpx/trim-by-video \
   -F gpx_file=@/path/to/track.gpx \
-  -F video_file=@/path/to/video.MP4 \
+  -F start_time=2025-11-02T17:02:23Z \
+  -F end_time=2025-11-02T17:07:00Z \
+  -F duration_seconds=277 \
   --output trimmed.gpx
 ```
 

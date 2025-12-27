@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from io import BytesIO
 import unittest
 from unittest import mock
 import xml.etree.ElementTree as ET
@@ -98,13 +96,14 @@ class ApiTests(unittest.TestCase):
     def test_trim_by_video_success(self) -> None:
         files = {
             "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
-            "video_file": ("clip.mp4", BytesIO(b"fake-video"), "video/mp4"),
         }
-        start_dt = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
-        end_dt = datetime(2024, 1, 1, 0, 0, 20, tzinfo=timezone.utc)
+        data = {
+            "start_time": "2024-01-01T00:00:00Z",
+            "end_time": "2024-01-01T00:00:20Z",
+            "duration_seconds": "20",
+        }
 
-        with mock.patch("gpx_helper.api.main.get_video_times", return_value=(start_dt, end_dt)):
-            response = self.client.post("/api/v1/gpx/trim-by-video", files=files)
+        response = self.client.post("/api/v1/gpx/trim-by-video", files=files, data=data)
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["content-type"], "application/gpx+xml")
