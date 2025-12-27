@@ -1,6 +1,8 @@
-# GPX_helper
+# GPX Helper
 
-Utilities for aligning GoPro (or other camera) video timestamps with GPX tracks. The primary tool, `gpx_splitter.py`, crops a GPX track to match a video clip so you can sync footage and GPS data for mapping or overlays. The repository now includes a `frontend/` Svelte landing page and a `backend/` Python workspace that hosts the CLI tools.
+Utilities for aligning GoPro (or other camera) video timestamps with GPX tracks. The primary tool, `gpx_splitter.py`,
+crops a GPX track to match a video clip so you can sync footage and GPS data for mapping or overlays. The repository
+also includes a Svelte landing page in `frontend/` and a Python/FastAPI backend in `backend/`.
 
 ## Features
 - Extracts video start time and duration from EXIF metadata via `exiftool`.
@@ -25,6 +27,7 @@ sudo apt-get update && sudo apt-get install -y libimage-exiftool-perl  # Ubuntu/
 
 # Map animation dependencies
 pip install gpxpy matplotlib contextily
+
 # ffmpeg is required to write MP4 output
 brew install ffmpeg  # macOS
 sudo apt-get install -y ffmpeg  # Ubuntu/Debian
@@ -41,7 +44,7 @@ python3 backend/src/gpx_helper/gpx_splitter.py /path/to/video.MP4 /path/to/track
 If `-o/--output` is omitted, the script writes to `<input>.cropped.gpx` next to the original GPX file.
 
 ## Backend API (foundation)
-The backend now includes a FastAPI service that exposes endpoints for trimming GPX files by a known time window or by
+The backend includes a FastAPI service that trims GPX files by a known time window or by
 matching a video file. Start the API from the repository root:
 
 ```bash
@@ -76,8 +79,8 @@ curl -X POST http://localhost:8000/api/v1/gpx/map-animate \
 ```
 
 ## Animate a GPX route on a map
-`map_animator.py` turns a GPX track into an MP4 that draws the route over OpenStreetMap tiles. It converts coordinates to Web Mercator
-(EPSG:3857) so they align with the basemap and hides chart axes for a clean map view.
+`map_animator.py` turns a GPX track into an MP4 that draws the route over OpenStreetMap tiles. It converts
+coordinates to Web Mercator (EPSG:3857) so they align with the basemap and hides chart axes for a clean map view.
 
 Usage:
 
