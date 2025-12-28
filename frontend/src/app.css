@@ -270,11 +270,50 @@ select:focus {
 
 @media (max-width: 860px) {
   .page-shell {
-    padding: 24px 16px 64px;
+    padding: 24px 16px 56px;
+  }
+
+  .hero {
+    padding: 20px;
+  }
+
+  .content {
+    gap: 16px;
+  }
+
+  .tool-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tool-card.wide {
+    grid-column: auto;
   }
 }
 
 @media (max-width: 560px) {
+  .hero h1 {
+    font-size: clamp(24px, 6vw, 32px);
+  }
+
+  .lede {
+    font-size: 15px;
+  }
+
+  .panel,
+  .tool-card {
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  input,
+  select {
+    font-size: 14px;
+  }
+
   .input-row {
     grid-template-columns: 1fr;
   }
@@ -284,6 +323,17 @@ select:focus {
   }
 
   .form-actions {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .download {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .site-footer {
+    flex-direction: column;
     align-items: flex-start;
   }
 }
