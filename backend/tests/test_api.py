@@ -109,6 +109,21 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.headers["content-type"], "application/gpx+xml")
         self.assertEqual(_count_trkpts(response.content), 3)
 
+    def test_trim_by_video_out_of_range(self) -> None:
+        files = {
+            "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
+        }
+        data = {
+            "start_time": "2023-12-31T23:59:50Z",
+            "end_time": "2024-01-01T00:00:10Z",
+            "duration_seconds": "20",
+        }
+
+        response = self.client.post("/api/v1/gpx/trim-by-video", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("outside GPX time range", response.json()["detail"])
+
     def test_map_animation_success(self) -> None:
         files = {
             "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),

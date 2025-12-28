@@ -219,6 +219,37 @@ def crop_gpx_by_time(
     tree.write(output_path, encoding="UTF-8", xml_declaration=True)
 
 
+def get_gpx_time_range(gpx_path: str) -> tuple[datetime, datetime]:
+    """
+    Return (min_time, max_time) for valid <time> elements in the GPX track.
+    """
+    tree = ET.parse(gpx_path)
+    root = tree.getroot()
+
+    trkseg = root.find(".//{%s}trkseg" % GPX_NS)
+    if trkseg is None:
+        raise RuntimeError("No <trkseg> element found in GPX")
+
+    trkpts = list(trkseg.findall("{%s}trkpt" % GPX_NS))
+    if not trkpts:
+        raise RuntimeError("No <trkpt> elements found in <trkseg>")
+
+    times: list[datetime] = []
+    for pt in trkpts:
+        time_el = pt.find("{%s}time" % GPX_NS)
+        if time_el is None or not time_el.text:
+            continue
+        try:
+            times.append(parse_gpx_time(time_el.text.strip()))
+        except Exception:
+            continue
+
+    if not times:
+        raise RuntimeError("No valid <time> elements in GPX track points")
+
+    return min(times), max(times)
+
+
 def format_hms(dt: datetime) -> str:
     """
     Return "HH:MM:SS" for a UTC datetime.
