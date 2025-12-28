@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
-from gpx_helper.gpx_splitter import crop_gpx_by_time
+from gpx_helper.gpx_splitter import crop_gpx_by_time, get_gpx_time_range
 from gpx_helper.map_animator import (
     create_animation,
     latlon_to_web_mercator,
@@ -144,6 +144,16 @@ def trim_by_video(
         suffix=".gpx"
     ) as gpx_output:
         _write_upload_to_file(gpx_file, gpx_input, "GPX")
+        try:
+            gpx_start, gpx_end = get_gpx_time_range(gpx_input.name)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        if start_dt < gpx_start or end_dt > gpx_end:
+            raise HTTPException(
+                status_code=400,
+                detail="Video timestamps fall outside GPX time range",
+            )
         try:
             crop_gpx_by_time(gpx_input.name, start_dt, end_dt, gpx_output.name)
         except Exception as exc:
