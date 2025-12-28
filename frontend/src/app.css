@@ -270,11 +270,15 @@ select:focus {
 
 @media (max-width: 860px) {
   .page-shell {
-    padding: 24px 16px 64px;
+    padding: 24px 16px 56px;
   }
 
   .hero {
     padding: 20px;
+  }
+
+  .content {
+    gap: 16px;
   }
 
   .tool-grid {
@@ -298,6 +302,7 @@ select:focus {
   .panel,
   .tool-card {
     padding: 16px;
+    border-radius: 14px;
   }
 
   .form-grid {
@@ -318,7 +323,13 @@ select:focus {
   }
 
   .form-actions {
+    flex-direction: column;
     align-items: flex-start;
+  }
+
+  .download {
+    width: 100%;
+    justify-content: center;
   }
 
   .site-footer {
