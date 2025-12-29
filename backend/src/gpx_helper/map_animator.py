@@ -10,10 +10,12 @@ Requirements:
     ffmpeg (for MP4 encoding)
 """
 
+from __future__ import annotations
+
 import argparse
 import math
 import os
-from typing import Iterable
+from typing import Iterable, TYPE_CHECKING
 
 import gpxpy
 import gpxpy.gpx
@@ -23,10 +25,9 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, FFMpegWriter
-import folium
-from PIL import Image
-from urllib import request
-from io import BytesIO
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 EARTH_RADIUS_METERS = 6_378_137.0
 MAX_MERCATOR_LAT = 85.05112878
@@ -155,11 +156,15 @@ def fetch_basemap_image(
     max_lon: float,
     width_px: int,
     height_px: int,
-) -> tuple[Image.Image, tuple[float, float, float, float]]:
+) -> tuple["Image.Image", tuple[float, float, float, float]]:
     """
     Fetch and stitch OpenStreetMap tiles for the given bounds.
     Returns a PIL image and its extent in Web Mercator coordinates.
     """
+    import folium
+    from PIL import Image
+    from urllib import request
+    from io import BytesIO
     zoom = choose_zoom_for_bounds(
         min_lat, max_lat, min_lon, max_lon, width_px, height_px, max_zoom=18
     )
