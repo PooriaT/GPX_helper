@@ -199,6 +199,10 @@ def animate_gpx_route(
                 width_px,
                 height_px,
                 video_output.name,
+                min_lat=min(lats),
+                max_lat=max(lats),
+                min_lon=min(lons),
+                max_lon=max(lons),
             )
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

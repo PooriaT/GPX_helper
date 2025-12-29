@@ -134,7 +134,17 @@ class ApiTests(unittest.TestCase):
         }
         fake_video = b"mp4-bytes"
 
-        def _fake_animation(xs, ys, frame_indices, total_frames, fps, width_px, height_px, output_path):
+        def _fake_animation(
+            xs,
+            ys,
+            frame_indices,
+            total_frames,
+            fps,
+            width_px,
+            height_px,
+            output_path,
+            **kwargs,
+        ):
             with open(output_path, "wb") as f:
                 f.write(fake_video)
 

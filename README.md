@@ -14,7 +14,7 @@ also includes a Svelte landing page in `frontend/` and a Python/FastAPI backend 
 ## Requirements
 - Python 3.8+
 - [`exiftool`](https://exiftool.org/) available in your `PATH` (for `gpx_splitter.py`)
-- `gpxpy`, `matplotlib`, and `contextily` Python packages (for map animation)
+- `gpxpy`, `matplotlib`, `folium`, and `pillow` Python packages (for map animation)
 - [`ffmpeg`](https://ffmpeg.org/) available in your `PATH` when exporting video
 
 ## Installation
@@ -26,7 +26,7 @@ brew install exiftool  # macOS
 sudo apt-get update && sudo apt-get install -y libimage-exiftool-perl  # Ubuntu/Debian
 
 # Map animation dependencies
-pip install gpxpy matplotlib contextily
+pip install gpxpy matplotlib folium pillow
 
 # ffmpeg is required to write MP4 output
 brew install ffmpeg  # macOS
@@ -93,7 +93,7 @@ python3 backend/src/gpx_helper/map_animator.py route.gpx 45 1920x1080 -o route.m
 - `1920x1080`: output resolution (width x height)
 - `-o route.mp4` (optional): output file name; defaults to `output.mp4`
 
-The script fetches free OpenStreetMap tiles via `contextily` (no API key required) and writes MP4 video with `ffmpeg`.
+The script fetches free OpenStreetMap tiles via `folium` (no API key required) and writes MP4 video with `ffmpeg`.
 
 ### What `gpx_splitter.py` does
 1. Reads creation and duration metadata from the video (UTC) using `exiftool`.
