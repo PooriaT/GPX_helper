@@ -17,6 +17,10 @@ from typing import Iterable
 
 import gpxpy
 import gpxpy.gpx
+import matplotlib
+
+matplotlib.use("Agg")
+
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, FFMpegWriter
 import contextily as cx
