@@ -27,7 +27,7 @@ jobs:
         run: poetry install --no-interaction --no-ansi
 
       - name: Run backend unit tests
-        run: poetry run python -m unittest
+        run: poetry run python -m unittest discover -s tests
 
   frontend-check:
     name: Frontend structure
