@@ -116,6 +116,19 @@ button:active {
   background: #0f172a;
 }
 
+button:disabled {
+  background: #6b7280;
+  border-color: #6b7280;
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
+input:disabled,
+select:disabled {
+  background: #e5e7eb;
+  cursor: not-allowed;
+}
+
 .ghost {
   background: transparent;
   color: #111827;
@@ -142,6 +155,45 @@ button:active {
 .content {
   display: grid;
   gap: 18px;
+}
+
+.loading-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #111827;
+  color: #f9fafb;
+  border-radius: 14px;
+  padding: 12px 14px;
+  border: 1px solid #111827;
+}
+
+.loading-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.loading-copy p {
+  margin: 0;
+}
+
+.loading-banner .muted-text {
+  color: #d1d5db;
+}
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 3px solid rgba(249, 250, 251, 0.35);
+  border-top-color: #f9fafb;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .panel,

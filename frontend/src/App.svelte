@@ -41,7 +41,11 @@
     message: ''
   };
 
+  let activeRequestLabel = '';
+  let estimatedSeconds = null;
+
   const resolutionPresets = ['1920x1080', '1280x720', '1024x768', '1024x1024'];
+  $: isBusy = [trimByTime, trimByVideo, mapAnimation].some((state) => state.status === 'loading');
 
   onDestroy(() => {
     [trimByTime, trimByVideo, mapAnimation].forEach((state) => {
@@ -81,6 +85,22 @@
       return error.message;
     }
     return fallback;
+  }
+
+  function cloneFormData(formData) {
+    const copy = new FormData();
+    formData.forEach((value, key) => copy.append(key, value));
+    return copy;
+  }
+
+  function startRequest(label) {
+    activeRequestLabel = label;
+    estimatedSeconds = null;
+  }
+
+  function finishRequest() {
+    activeRequestLabel = '';
+    estimatedSeconds = null;
   }
 
   function readFileText(file) {
@@ -181,10 +201,34 @@
     return { blob, filename };
   }
 
+  async function requestEta(path, formData) {
+    const response = await fetch(`${apiBase}${path}`, {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) {
+      let detail;
+      try {
+        detail = await response.json();
+      } catch (error) {
+        detail = null;
+      }
+      throw new Error(detail?.detail || `Unable to fetch ETA (${response.status})`);
+    }
+
+    const payload = await response.json();
+    if (typeof payload?.estimated_seconds !== 'number') {
+      throw new Error('Invalid ETA response from server.');
+    }
+    return payload.estimated_seconds;
+  }
+
   async function submitTrimByTime() {
     if (trimByTime.downloadUrl) {
       URL.revokeObjectURL(trimByTime.downloadUrl);
     }
+    startRequest('Trimming GPX by time...');
     trimByTime = {
       ...trimByTime,
       status: 'loading',
@@ -220,6 +264,8 @@
       };
     } catch (error) {
       trimByTime = { ...trimByTime, status: 'error', error: parseError(error) };
+    } finally {
+      finishRequest();
     }
   }
 
@@ -227,6 +273,7 @@
     if (trimByVideo.downloadUrl) {
       URL.revokeObjectURL(trimByVideo.downloadUrl);
     }
+    startRequest('Trimming GPX with video metadata...');
     trimByVideo = {
       ...trimByVideo,
       status: 'loading',
@@ -268,6 +315,8 @@
       };
     } catch (error) {
       trimByVideo = { ...trimByVideo, status: 'error', error: parseError(error) };
+    } finally {
+      finishRequest();
     }
   }
 
@@ -275,6 +324,7 @@
     if (mapAnimation.downloadUrl) {
       URL.revokeObjectURL(mapAnimation.downloadUrl);
     }
+    startRequest('Rendering map animation...');
     mapAnimation = {
       ...mapAnimation,
       status: 'loading',
@@ -306,6 +356,14 @@
       formData.append('duration_seconds', String(mapAnimation.durationSeconds));
       formData.append('resolution', mapAnimation.resolution);
 
+      requestEta('/api/v1/gpx/map-animate/estimate', cloneFormData(formData))
+        .then((eta) => {
+          estimatedSeconds = eta;
+        })
+        .catch(() => {
+          estimatedSeconds = null;
+        });
+
       const { blob, filename } = await requestFile('/api/v1/gpx/map-animate', formData, 'route.mp4');
       const downloadUrl = URL.createObjectURL(blob);
       mapAnimation = {
@@ -317,6 +375,8 @@
       };
     } catch (error) {
       mapAnimation = { ...mapAnimation, status: 'error', error: parseError(error) };
+    } finally {
+      finishRequest();
     }
   }
 
@@ -337,6 +397,22 @@
       page.
     </p>
   </header>
+
+  {#if isBusy}
+    <div class="loading-banner" role="status" aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <div class="loading-copy">
+        <p class="loading-title">{activeRequestLabel || 'Working on your request...'}</p>
+        <p class="muted-text">
+          {#if estimatedSeconds}
+            Estimated wait: ~{Math.max(1, Math.round(estimatedSeconds))} seconds.
+          {:else}
+            Preparing your request. Buttons stay disabled until it finishes.
+          {/if}
+        </p>
+      </div>
+    </div>
+  {/if}
 
   <main class="content">
     <section class="tool-grid">
@@ -391,7 +467,7 @@
             <input type="datetime-local" bind:value={trimByTime.endLocal} required />
           </label>
           <div class="form-actions">
-            <button type="submit">Trim track</button>
+            <button type="submit" disabled={isBusy}>Trim track</button>
             <p class="hint">
               Add a video to auto-fill the end time from the file timestamp and the start time as end minus duration.
               Times are converted to UTC before sending to the API.
@@ -464,7 +540,7 @@
             />
           </label>
           <div class="form-actions">
-            <button type="submit">Trim with video</button>
+            <button type="submit" disabled={isBusy}>Trim with video</button>
             <p class="hint">
               Uses metadata if available, otherwise falls back to file timestamps. Only the calculated timestamps are
               sent to the API.
@@ -530,7 +606,7 @@
           </select>
         </label>
         <div class="form-actions">
-          <button type="submit">Render animation</button>
+          <button type="submit" disabled={isBusy}>Render animation</button>
           <p class="hint">Duration auto-fills from the GPX timestamps when available.</p>
         </div>
       </form>
