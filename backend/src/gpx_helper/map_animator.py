@@ -6,14 +6,16 @@ Usage:
     python3 map_animator.py route.gpx 45 1920x1080 -o route.mp4
 
 Requirements:
-    pip install gpxpy matplotlib contextily
+    pip install gpxpy matplotlib folium pillow
     ffmpeg (for MP4 encoding)
 """
+
+from __future__ import annotations
 
 import argparse
 import math
 import os
-from typing import Iterable
+from typing import Iterable, TYPE_CHECKING
 
 import gpxpy
 import gpxpy.gpx
@@ -23,7 +25,9 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, FFMpegWriter
-import contextily as cx
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 EARTH_RADIUS_METERS = 6_378_137.0
 MAX_MERCATOR_LAT = 85.05112878
@@ -86,6 +90,127 @@ def latlon_to_web_mercator(lats: Iterable[float], lons: Iterable[float]) -> tupl
     return xs, ys
 
 
+def latlon_to_web_mercator_point(lat: float, lon: float) -> tuple[float, float]:
+    """
+    Convert a single WGS84 lat/lon to Web Mercator x/y.
+    """
+    x, y = latlon_to_web_mercator([lat], [lon])
+    return x[0], y[0]
+
+
+def lonlat_to_pixel(lon: float, lat: float, zoom: int) -> tuple[float, float]:
+    """
+    Convert lon/lat to pixel coordinates at a given zoom level.
+    """
+    lat_rad = math.radians(lat)
+    n = 2.0 ** zoom
+    x = (lon + 180.0) / 360.0 * n * 256.0
+    y = (1 - math.log(math.tan(lat_rad) + 1 / math.cos(lat_rad)) / math.pi) / 2 * n * 256.0
+    return x, y
+
+
+def lonlat_to_tile(lon: float, lat: float, zoom: int) -> tuple[int, int]:
+    """
+    Convert lon/lat to tile x/y at a given zoom level.
+    """
+    x, y = lonlat_to_pixel(lon, lat, zoom)
+    return int(x // 256), int(y // 256)
+
+
+def tile_xy_to_lonlat(x: int, y: int, zoom: int) -> tuple[float, float]:
+    """
+    Convert tile x/y at a given zoom to lon/lat for the tile's NW corner.
+    """
+    n = 2.0 ** zoom
+    lon = x / n * 360.0 - 180.0
+    lat_rad = math.atan(math.sinh(math.pi * (1 - 2 * y / n)))
+    lat = math.degrees(lat_rad)
+    return lon, lat
+
+
+def choose_zoom_for_bounds(
+    min_lat: float,
+    max_lat: float,
+    min_lon: float,
+    max_lon: float,
+    width_px: int,
+    height_px: int,
+    *,
+    max_zoom: int = 18,
+) -> int:
+    """
+    Pick the highest zoom that fits the bounds within the target resolution.
+    """
+    for zoom in range(max_zoom, -1, -1):
+        x_min, y_max = lonlat_to_pixel(min_lon, max_lat, zoom)
+        x_max, y_min = lonlat_to_pixel(max_lon, min_lat, zoom)
+        if abs(x_max - x_min) <= width_px and abs(y_max - y_min) <= height_px:
+            return zoom
+    return 0
+
+
+def fetch_basemap_image(
+    min_lat: float,
+    max_lat: float,
+    min_lon: float,
+    max_lon: float,
+    width_px: int,
+    height_px: int,
+) -> tuple["Image.Image", tuple[float, float, float, float]]:
+    """
+    Fetch and stitch OpenStreetMap tiles for the given bounds.
+    Returns a PIL image and its extent in Web Mercator coordinates.
+    """
+    import folium
+    from PIL import Image
+    from urllib import request
+    from io import BytesIO
+    zoom = choose_zoom_for_bounds(
+        min_lat, max_lat, min_lon, max_lon, width_px, height_px, max_zoom=18
+    )
+
+    tile_layer = folium.raster_layers.TileLayer(tiles="OpenStreetMap")
+    url_template = tile_layer.tiles
+    subdomains = list(tile_layer.subdomains) if tile_layer.subdomains else ["a", "b", "c"]
+
+    min_x_tile, min_y_tile = lonlat_to_tile(min_lon, max_lat, zoom)
+    max_x_tile, max_y_tile = lonlat_to_tile(max_lon, min_lat, zoom)
+
+    max_tile_index = 2 ** zoom - 1
+    min_x_tile = max(0, min(min_x_tile, max_tile_index))
+    max_x_tile = max(0, min(max_x_tile, max_tile_index))
+    min_y_tile = max(0, min(min_y_tile, max_tile_index))
+    max_y_tile = max(0, min(max_y_tile, max_tile_index))
+
+    tiles_wide = max_x_tile - min_x_tile + 1
+    tiles_high = max_y_tile - min_y_tile + 1
+    stitched = Image.new("RGB", (tiles_wide * 256, tiles_high * 256))
+
+    tile_index = 0
+    for x in range(min_x_tile, max_x_tile + 1):
+        for y in range(min_y_tile, max_y_tile + 1):
+            subdomain = subdomains[tile_index % len(subdomains)]
+            tile_url = url_template.format(s=subdomain, z=zoom, x=x, y=y)
+            tile_index += 1
+            try:
+                with request.urlopen(tile_url, timeout=10) as response:
+                    tile_data = response.read()
+                tile_image = Image.open(BytesIO(tile_data)).convert("RGB")
+            except Exception:
+                tile_image = Image.new("RGB", (256, 256), color=(230, 230, 230))
+            x_offset = (x - min_x_tile) * 256
+            y_offset = (y - min_y_tile) * 256
+            stitched.paste(tile_image, (x_offset, y_offset))
+
+    west_lon, north_lat = tile_xy_to_lonlat(min_x_tile, min_y_tile, zoom)
+    east_lon, south_lat = tile_xy_to_lonlat(max_x_tile + 1, max_y_tile + 1, zoom)
+    min_x_merc, max_y_merc = latlon_to_web_mercator_point(north_lat, west_lon)
+    max_x_merc, min_y_merc = latlon_to_web_mercator_point(south_lat, east_lon)
+
+    extent = (min_x_merc, max_x_merc, min_y_merc, max_y_merc)
+    return stitched, extent
+
+
 def prepare_animation_data(
     xs: list[float], ys: list[float], duration_sec: float, fps: int = DEFAULT_FPS
 ) -> tuple[list[int], int, int]:
@@ -120,6 +245,11 @@ def create_animation(
     width_px: int,
     height_px: int,
     output_path: str,
+    *,
+    min_lat: float,
+    max_lat: float,
+    min_lon: float,
+    max_lon: float,
 ) -> None:
     """
     Create and save the animation as an MP4 file with OpenStreetMap basemap.
@@ -146,13 +276,10 @@ def create_animation(
     ax.set_yticks([])
     ax.set_axis_off()
 
-    # Add OpenStreetMap basemap
-    # CRS = EPSG:3857 (Web Mercator)
-    cx.add_basemap(
-        ax,
-        crs="EPSG:3857",
-        source=cx.providers.OpenStreetMap.Mapnik,  # standard OSM tiles
+    basemap_image, basemap_extent = fetch_basemap_image(
+        min_lat, max_lat, min_lon, max_lon, width_px, height_px
     )
+    ax.imshow(basemap_image, extent=basemap_extent, origin="upper")
 
     # Static full path
     full_line, = ax.plot(xs, ys, linewidth=1.5, alpha=0.8)
@@ -235,6 +362,10 @@ def main():
         width_px,
         height_px,
         args.output,
+        min_lat=min(lats),
+        max_lat=max(lats),
+        min_lon=min(lons),
+        max_lon=max(lons),
     )
 
 
