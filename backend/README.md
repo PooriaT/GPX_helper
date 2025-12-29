@@ -61,5 +61,5 @@ The backend unit tests are located in `backend/tests`. Run them from the `backen
 
 ```bash
 cd backend
-poetry run python -m unittest
+poetry run python -m unittest discover -s tests
 ```
