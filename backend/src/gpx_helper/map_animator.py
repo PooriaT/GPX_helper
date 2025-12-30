@@ -6,7 +6,7 @@ Usage:
     python3 map_animator.py route.gpx 45 1920x1080 -o route.mp4
 
 Requirements:
-    pip install gpxpy matplotlib folium pillow
+    pip install gpxpy matplotlib pillow
     ffmpeg (for MP4 encoding)
 """
 
@@ -161,7 +161,6 @@ def fetch_basemap_image(
     Fetch and stitch OpenStreetMap tiles for the given bounds.
     Returns a PIL image and its extent in Web Mercator coordinates.
     """
-    import folium
     from PIL import Image
     from urllib import request
     from io import BytesIO
@@ -169,9 +168,8 @@ def fetch_basemap_image(
         min_lat, max_lat, min_lon, max_lon, width_px, height_px, max_zoom=18
     )
 
-    tile_layer = folium.raster_layers.TileLayer(tiles="OpenStreetMap")
-    url_template = tile_layer.tiles
-    subdomains = list(tile_layer.subdomains) if tile_layer.subdomains else ["a", "b", "c"]
+    url_template = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+    subdomains = ["a", "b", "c"]
 
     min_x_tile, min_y_tile = lonlat_to_tile(min_lon, max_lat, zoom)
     max_x_tile, max_y_tile = lonlat_to_tile(max_lon, min_lat, zoom)
