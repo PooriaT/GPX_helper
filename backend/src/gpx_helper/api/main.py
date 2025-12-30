@@ -14,6 +14,7 @@ from starlette.datastructures import UploadFile as StarletteUploadFile
 from gpx_helper.gpx_splitter import crop_gpx_by_time, get_gpx_time_range
 from gpx_helper.map_animator import (
     create_animation,
+    estimate_animation_seconds,
     latlon_to_web_mercator,
     load_gpx_points,
     parse_resolution,
@@ -100,6 +101,7 @@ def capabilities() -> JSONResponse:
             "endpoints": [
                 "POST /api/v1/gpx/trim-by-time",
                 "POST /api/v1/gpx/trim-by-video",
+                "POST /api/v1/gpx/map-animate/estimate",
                 "POST /api/v1/gpx/map-animate",
             ],
         }
@@ -161,6 +163,35 @@ def trim_by_video(
 
         gpx_output.seek(0)
         return _stream_gpx(gpx_output.read(), "trimmed.gpx")
+
+
+@app.post("/api/v1/gpx/map-animate/estimate")
+def estimate_map_animation(
+    gpx_file: UploadFile | str | None = File(None),
+    duration_seconds: float = Form(...),
+    resolution: str = Form(...),
+) -> JSONResponse:
+    gpx_file = _validate_upload(gpx_file, "gpx_file")
+
+    if duration_seconds <= 0:
+        raise HTTPException(status_code=400, detail="duration_seconds must be positive")
+
+    try:
+        width_px, height_px = parse_resolution(resolution)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    with tempfile.NamedTemporaryFile(suffix=".gpx") as gpx_input:
+        _write_upload_to_file(gpx_file, gpx_input, "GPX")
+        try:
+            lats, lons = load_gpx_points(gpx_input.name)
+            estimated_seconds = estimate_animation_seconds(
+                lats, lons, width_px, height_px, duration_seconds
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return JSONResponse({"estimated_seconds": round(float(estimated_seconds), 2)})
 
 
 @app.post("/api/v1/gpx/map-animate")

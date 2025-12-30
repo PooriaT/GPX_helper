@@ -10,8 +10,12 @@ The API is implemented in `backend/src/gpx_helper/api/main.py` and exposes:
 - `POST /api/v1/gpx/trim-by-time` to crop a GPX file to a provided time range.
 - `POST /api/v1/gpx/trim-by-video` to crop a GPX file based on the time range provided
   by client-side video metadata.
+- `POST /api/v1/gpx/map-animate/estimate` to return a rough render ETA before starting
+  the animation work.
 - `POST /api/v1/gpx/map-animate` to render a GPX track into an MP4 map animation
   using a requested duration and resolution.
+  Override `MAP_TILE_URL_TEMPLATE` or `MAP_TILE_USER_AGENT` if you need to point at your
+  own compliant tile server.
 
 GPX trimming logic lives in `backend/src/gpx_helper/gpx_splitter.py`. The trim-by-video
 endpoint expects the client to send start/end timestamps plus the video duration derived
@@ -54,6 +58,11 @@ curl -X POST http://localhost:8000/api/v1/gpx/map-animate \
   -F duration_seconds=45 \
   -F resolution=1920x1080 \
   --output route.mp4
+
+curl -X POST http://localhost:8000/api/v1/gpx/map-animate/estimate \
+  -F gpx_file=@/path/to/track.gpx \
+  -F duration_seconds=45 \
+  -F resolution=1920x1080
 ```
 
 ## Running unit tests
