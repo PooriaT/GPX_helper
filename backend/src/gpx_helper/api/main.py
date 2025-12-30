@@ -180,6 +180,8 @@ def estimate_map_animation(
         width_px, height_px = parse_resolution(resolution)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if width_px <= 0 or height_px <= 0:
+        raise HTTPException(status_code=400, detail="resolution must be positive")
 
     with tempfile.NamedTemporaryFile(suffix=".gpx") as gpx_input:
         _write_upload_to_file(gpx_file, gpx_input, "GPX")
