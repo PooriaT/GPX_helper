@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import math
 import os
+from functools import lru_cache
 from typing import Iterable, TYPE_CHECKING
 
 import gpxpy
@@ -32,6 +33,70 @@ if TYPE_CHECKING:
 EARTH_RADIUS_METERS = 6_378_137.0
 MAX_MERCATOR_LAT = 85.05112878
 DEFAULT_FPS = 30
+DEFAULT_TILE_URL_TEMPLATE = os.environ.get(
+    "MAP_TILE_URL_TEMPLATE",
+    "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+)
+DEFAULT_TILE_SUBDOMAINS = tuple(
+    sd for sd in os.environ.get("MAP_TILE_SUBDOMAINS", "").split(",") if sd
+) or ("a", "b", "c")
+TILE_REQUEST_TIMEOUT = float(os.environ.get("MAP_TILE_TIMEOUT_SECONDS", "10"))
+TILE_USER_AGENT = os.environ.get(
+    "MAP_TILE_USER_AGENT",
+    "gpx-helper/0.1.0 (contact: pooria_taghdiri@hotmail.com)",
+)
+TILE_REFERER = os.environ.get("MAP_TILE_REFERER", "")
+
+
+def _compute_tile_range(
+    min_lat: float,
+    max_lat: float,
+    min_lon: float,
+    max_lon: float,
+    width_px: int,
+    height_px: int,
+    *,
+    max_zoom: int = 18,
+) -> tuple[int, tuple[int, int, int, int]]:
+    """
+    Determine the zoom level and tile bounds that cover the requested area.
+    """
+    zoom = choose_zoom_for_bounds(
+        min_lat, max_lat, min_lon, max_lon, width_px, height_px, max_zoom=max_zoom
+    )
+    min_x_tile, min_y_tile = lonlat_to_tile(min_lon, max_lat, zoom)
+    max_x_tile, max_y_tile = lonlat_to_tile(max_lon, min_lat, zoom)
+
+    max_tile_index = 2 ** zoom - 1
+    min_x_tile = max(0, min(min_x_tile, max_tile_index))
+    max_x_tile = max(0, min(max_x_tile, max_tile_index))
+    min_y_tile = max(0, min(min_y_tile, max_tile_index))
+    max_y_tile = max(0, min(max_y_tile, max_tile_index))
+    return zoom, (min_x_tile, max_x_tile, min_y_tile, max_y_tile)
+
+
+def _format_tile_url(
+    template: str, subdomains: tuple[str, ...], tile_index: int, zoom: int, x: int, y: int
+) -> str:
+    format_kwargs = {"z": zoom, "x": x, "y": y}
+    if "{s}" in template:
+        # Cycle across provided subdomains if the template expects one.
+        resolved_subdomains = subdomains or ("a", "b", "c")
+        format_kwargs["s"] = resolved_subdomains[tile_index % len(resolved_subdomains)]
+    return template.format(**format_kwargs)
+
+
+@lru_cache(maxsize=256)
+def _download_tile(tile_url: str) -> bytes:
+    from urllib import request
+
+    headers = {"User-Agent": TILE_USER_AGENT}
+    if TILE_REFERER:
+        headers["Referer"] = TILE_REFERER
+
+    req = request.Request(tile_url, headers=headers)
+    with request.urlopen(req, timeout=TILE_REQUEST_TIMEOUT) as response:
+        return response.read()
 
 
 def parse_resolution(res_str: str) -> tuple[int, int]:
@@ -162,23 +227,11 @@ def fetch_basemap_image(
     Returns a PIL image and its extent in Web Mercator coordinates.
     """
     from PIL import Image
-    from urllib import request
     from io import BytesIO
-    zoom = choose_zoom_for_bounds(
-        min_lat, max_lat, min_lon, max_lon, width_px, height_px, max_zoom=18
+
+    zoom, (min_x_tile, max_x_tile, min_y_tile, max_y_tile) = _compute_tile_range(
+        min_lat, max_lat, min_lon, max_lon, width_px, height_px
     )
-
-    url_template = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-    subdomains = ["a", "b", "c"]
-
-    min_x_tile, min_y_tile = lonlat_to_tile(min_lon, max_lat, zoom)
-    max_x_tile, max_y_tile = lonlat_to_tile(max_lon, min_lat, zoom)
-
-    max_tile_index = 2 ** zoom - 1
-    min_x_tile = max(0, min(min_x_tile, max_tile_index))
-    max_x_tile = max(0, min(max_x_tile, max_tile_index))
-    min_y_tile = max(0, min(min_y_tile, max_tile_index))
-    max_y_tile = max(0, min(max_y_tile, max_tile_index))
 
     tiles_wide = max_x_tile - min_x_tile + 1
     tiles_high = max_y_tile - min_y_tile + 1
@@ -187,12 +240,12 @@ def fetch_basemap_image(
     tile_index = 0
     for x in range(min_x_tile, max_x_tile + 1):
         for y in range(min_y_tile, max_y_tile + 1):
-            subdomain = subdomains[tile_index % len(subdomains)]
-            tile_url = url_template.format(s=subdomain, z=zoom, x=x, y=y)
+            tile_url = _format_tile_url(
+                DEFAULT_TILE_URL_TEMPLATE, DEFAULT_TILE_SUBDOMAINS, tile_index, zoom, x, y
+            )
             tile_index += 1
             try:
-                with request.urlopen(tile_url, timeout=10) as response:
-                    tile_data = response.read()
+                tile_data = _download_tile(tile_url)
                 tile_image = Image.open(BytesIO(tile_data)).convert("RGB")
             except Exception:
                 tile_image = Image.new("RGB", (256, 256), color=(230, 230, 230))
@@ -258,16 +311,13 @@ def create_animation(
     fig_height_in = height_px / dpi
 
     fig, ax = plt.subplots(figsize=(fig_width_in, fig_height_in), dpi=dpi)
+    # Remove all padding/margins so the basemap fills the frame.
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    ax.set_position([0, 0, 1, 1])
 
     # Bounds in Web Mercator
     min_x, max_x = min(xs), max(xs)
     min_y, max_y = min(ys), max(ys)
-
-    x_pad = (max_x - min_x) * 0.05 or 10
-    y_pad = (max_y - min_y) * 0.05 or 10
-
-    ax.set_xlim(min_x - x_pad, max_x + x_pad)
-    ax.set_ylim(min_y - y_pad, max_y + y_pad)
 
     # Hide axis for a more "map-like" look
     ax.set_xticks([])
@@ -277,7 +327,9 @@ def create_animation(
     basemap_image, basemap_extent = fetch_basemap_image(
         min_lat, max_lat, min_lon, max_lon, width_px, height_px
     )
-    ax.imshow(basemap_image, extent=basemap_extent, origin="upper")
+    ax.imshow(basemap_image, extent=basemap_extent, origin="upper", aspect="auto")
+    ax.set_xlim(basemap_extent[0], basemap_extent[1])
+    ax.set_ylim(basemap_extent[2], basemap_extent[3])
 
     # Static full path
     full_line, = ax.plot(xs, ys, linewidth=1.5, alpha=0.8)
@@ -315,6 +367,44 @@ def create_animation(
     anim.save(output_path, writer=writer)
     plt.close(fig)
     print("Done.")
+
+
+def estimate_animation_seconds(
+    lats: list[float],
+    lons: list[float],
+    width_px: int,
+    height_px: int,
+    duration_sec: float,
+    fps: int = DEFAULT_FPS,
+) -> float:
+    """
+    Provide a rough wall-clock estimate for rendering an animation.
+    Factors in tile downloads and frame rendering work.
+    """
+    xs, ys = latlon_to_web_mercator(lats, lons)
+    _, total_frames, _ = prepare_animation_data(xs, ys, duration_sec, fps=fps)
+
+    zoom, (min_x_tile, max_x_tile, min_y_tile, max_y_tile) = _compute_tile_range(
+        min(lats),
+        max(lats),
+        min(lons),
+        max(lons),
+        width_px,
+        height_px,
+    )
+    tiles_needed = (max_x_tile - min_x_tile + 1) * (max_y_tile - min_y_tile + 1)
+
+    # Scale render/encode cost by resolution with a 720p baseline.
+    resolution_factor = max(0.5, min((width_px * height_px) / (1280 * 720), 8.0))
+
+    tile_seconds = tiles_needed * 0.35  # slightly conservative per-tile cost
+    render_seconds = max(total_frames * 0.015 * resolution_factor, 0.5)
+    encode_seconds = duration_sec * 0.05 * resolution_factor
+    overhead_seconds = 1.5  # setup/IO overhead
+
+    estimate = overhead_seconds + tile_seconds + render_seconds + encode_seconds
+    # Keep ETA bounded to avoid extreme values on odd inputs
+    return max(2.0, min(estimate, 600.0))
 
 
 def main():

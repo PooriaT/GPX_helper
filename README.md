@@ -76,6 +76,12 @@ curl -X POST http://localhost:8000/api/v1/gpx/map-animate \
   -F duration_seconds=45 \
   -F resolution=1920x1080 \
   --output route.mp4
+
+# Ask the backend for an ETA before rendering (JSON response)
+curl -X POST http://localhost:8000/api/v1/gpx/map-animate/estimate \
+  -F gpx_file=@/path/to/track.gpx \
+  -F duration_seconds=45 \
+  -F resolution=1920x1080
 ```
 
 ## Animate a GPX route on a map

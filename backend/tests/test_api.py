@@ -48,6 +48,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(payload["version"], "v1")
         self.assertIn("POST /api/v1/gpx/trim-by-time", payload["endpoints"])
         self.assertIn("POST /api/v1/gpx/trim-by-video", payload["endpoints"])
+        self.assertIn("POST /api/v1/gpx/map-animate/estimate", payload["endpoints"])
         self.assertIn("POST /api/v1/gpx/map-animate", payload["endpoints"])
 
     def test_trim_by_time_success(self) -> None:
@@ -180,6 +181,38 @@ class ApiTests(unittest.TestCase):
         }
 
         response = self.client.post("/api/v1/gpx/map-animate", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("duration_seconds", response.json()["detail"])
+
+    def test_map_animation_eta_success(self) -> None:
+        files = {
+            "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
+        }
+        data = {
+            "duration_seconds": "5",
+            "resolution": "640x480",
+        }
+        with mock.patch(
+            "gpx_helper.api.main.estimate_animation_seconds", return_value=3.5
+        ):
+            response = self.client.post(
+                "/api/v1/gpx/map-animate/estimate", files=files, data=data
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"estimated_seconds": 3.5})
+
+    def test_map_animation_eta_invalid_duration(self) -> None:
+        files = {
+            "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
+        }
+        data = {
+            "duration_seconds": "0",
+            "resolution": "640x480",
+        }
+
+        response = self.client.post("/api/v1/gpx/map-animate/estimate", files=files, data=data)
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("duration_seconds", response.json()["detail"])
