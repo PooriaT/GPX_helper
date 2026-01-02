@@ -301,6 +301,13 @@ def create_animation(
     max_lat: float,
     min_lon: float,
     max_lon: float,
+    marker_color: str = "#0ea5e9",
+    animated_line_color: str = "#0ea5e9",
+    full_line_color: str = "#111827",
+    full_line_opacity: float = 0.8,
+    line_width: float = 2.5,
+    animated_line_opacity: float = 1.0,
+    marker_size: float = 6.0,
 ) -> None:
     """
     Create and save the animation as an MP4 file with OpenStreetMap basemap.
@@ -332,13 +339,33 @@ def create_animation(
     ax.set_ylim(basemap_extent[2], basemap_extent[3])
 
     # Static full path
-    full_line, = ax.plot(xs, ys, linewidth=1.5, alpha=0.8)
+    full_line, = ax.plot(
+        xs,
+        ys,
+        linewidth=max(line_width - 0.5, 0.5),
+        alpha=max(0.0, min(full_line_opacity, 1.0)),
+        color=full_line_color,
+    )
 
     # Dynamic path up to current position
-    animated_line, = ax.plot([], [], linewidth=2.5)
+    animated_line, = ax.plot(
+        [],
+        [],
+        linewidth=max(line_width, 0.5),
+        color=animated_line_color,
+        alpha=max(0.0, min(animated_line_opacity, 1.0)),
+    )
 
     # Current position marker
-    current_point, = ax.plot([], [], marker="o", markersize=6)
+    current_point, = ax.plot(
+        [],
+        [],
+        marker="o",
+        markersize=max(marker_size, 1.0),
+        color=marker_color,
+        markeredgecolor="white",
+        markeredgewidth=0.8,
+    )
 
     def init():
         animated_line.set_data([], [])
