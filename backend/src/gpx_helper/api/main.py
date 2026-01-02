@@ -170,6 +170,13 @@ def estimate_map_animation(
     gpx_file: UploadFile | str | None = File(None),
     duration_seconds: float = Form(...),
     resolution: str = Form(...),
+    marker_color: str = Form("#0ea5e9"),
+    trail_color: str = Form("#0ea5e9"),
+    full_trail_color: str = Form("#111827"),
+    full_trail_opacity: float = Form(0.8),
+    line_width: float = Form(2.5),
+    line_opacity: float = Form(1.0),
+    marker_size: float = Form(6.0),
 ) -> JSONResponse:
     gpx_file = _validate_upload(gpx_file, "gpx_file")
 
@@ -182,6 +189,13 @@ def estimate_map_animation(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if width_px <= 0 or height_px <= 0:
         raise HTTPException(status_code=400, detail="resolution must be positive")
+    if line_width <= 0:
+        raise HTTPException(status_code=400, detail="line_width must be positive")
+    if marker_size <= 0:
+        raise HTTPException(status_code=400, detail="marker_size must be positive")
+    for label, opacity in (("full_trail_opacity", full_trail_opacity), ("line_opacity", line_opacity)):
+        if opacity < 0 or opacity > 1:
+            raise HTTPException(status_code=400, detail=f"{label} must be between 0 and 1")
 
     with tempfile.NamedTemporaryFile(suffix=".gpx") as gpx_input:
         _write_upload_to_file(gpx_file, gpx_input, "GPX")
@@ -201,6 +215,13 @@ def animate_gpx_route(
     gpx_file: UploadFile | str | None = File(None),
     duration_seconds: float = Form(...),
     resolution: str = Form(...),
+    marker_color: str = Form("#0ea5e9"),
+    trail_color: str = Form("#0ea5e9"),
+    full_trail_color: str = Form("#111827"),
+    full_trail_opacity: float = Form(0.8),
+    line_width: float = Form(2.5),
+    line_opacity: float = Form(1.0),
+    marker_size: float = Form(6.0),
 ) -> StreamingResponse:
     gpx_file = _validate_upload(gpx_file, "gpx_file")
 
@@ -211,6 +232,13 @@ def animate_gpx_route(
         width_px, height_px = parse_resolution(resolution)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if line_width <= 0:
+        raise HTTPException(status_code=400, detail="line_width must be positive")
+    if marker_size <= 0:
+        raise HTTPException(status_code=400, detail="marker_size must be positive")
+    for label, opacity in (("full_trail_opacity", full_trail_opacity), ("line_opacity", line_opacity)):
+        if opacity < 0 or opacity > 1:
+            raise HTTPException(status_code=400, detail=f"{label} must be between 0 and 1")
 
     with tempfile.NamedTemporaryFile(suffix=".gpx") as gpx_input, tempfile.NamedTemporaryFile(
         suffix=".mp4"
@@ -236,6 +264,13 @@ def animate_gpx_route(
                 max_lat=max(lats),
                 min_lon=min(lons),
                 max_lon=max(lons),
+                marker_color=marker_color,
+                animated_line_color=trail_color,
+                full_line_color=full_trail_color,
+                full_line_opacity=full_trail_opacity,
+                line_width=line_width,
+                animated_line_opacity=line_opacity,
+                marker_size=marker_size,
             )
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

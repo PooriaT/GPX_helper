@@ -34,6 +34,13 @@
     gpxFile: null,
     durationSeconds: 45,
     resolution: '1920x1080',
+    markerColor: '#0ea5e9',
+    trailColor: '#0ea5e9',
+    fullTrailColor: '#111827',
+    fullTrailOpacity: 0.8,
+    markerSize: 6,
+    lineWidth: 2.5,
+    lineOpacity: 1,
     status: 'idle',
     error: '',
     downloadUrl: '',
@@ -356,6 +363,13 @@
       formData.append('gpx_file', mapAnimation.gpxFile);
       formData.append('duration_seconds', String(mapAnimation.durationSeconds));
       formData.append('resolution', mapAnimation.resolution);
+      formData.append('marker_color', mapAnimation.markerColor);
+      formData.append('trail_color', mapAnimation.trailColor);
+      formData.append('full_trail_color', mapAnimation.fullTrailColor);
+      formData.append('full_trail_opacity', String(mapAnimation.fullTrailOpacity));
+      formData.append('marker_size', String(mapAnimation.markerSize));
+      formData.append('line_width', String(mapAnimation.lineWidth));
+      formData.append('line_opacity', String(mapAnimation.lineOpacity));
 
       requestEta('/api/v1/gpx/map-animate/estimate', cloneFormData(formData))
         .then((eta) => {
@@ -604,6 +618,60 @@
               <option value={preset}>{preset}</option>
             {/each}
           </select>
+        </label>
+        <label>
+          Marker color
+          <input type="color" bind:value={mapAnimation.markerColor} />
+        </label>
+        <label>
+          Marker size (px)
+          <input
+            type="number"
+            min="1"
+            step="0.5"
+            bind:value={mapAnimation.markerSize}
+            placeholder="6"
+          />
+        </label>
+        <label>
+          Animated trail color
+          <input type="color" bind:value={mapAnimation.trailColor} />
+        </label>
+        <label>
+          Full trail color
+          <input type="color" bind:value={mapAnimation.fullTrailColor} />
+        </label>
+        <label>
+          Full trail opacity
+          <input
+            type="number"
+            min="0"
+            max="1"
+            step="0.05"
+            bind:value={mapAnimation.fullTrailOpacity}
+            placeholder="0.8"
+          />
+        </label>
+        <label>
+          Line width (px)
+          <input
+            type="number"
+            min="0.5"
+            step="0.1"
+            bind:value={mapAnimation.lineWidth}
+            placeholder="2.5"
+          />
+        </label>
+        <label>
+          Animated line opacity
+          <input
+            type="number"
+            min="0"
+            max="1"
+            step="0.05"
+            bind:value={mapAnimation.lineOpacity}
+            placeholder="1"
+          />
         </label>
         <div class="form-actions">
           <button type="submit" disabled={isBusy}>Render animation</button>
