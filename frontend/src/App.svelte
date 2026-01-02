@@ -43,6 +43,7 @@
 
   let activeRequestLabel = '';
   let estimatedSeconds = null;
+  const currentYear = new Date().getFullYear();
 
   const resolutionPresets = ['1920x1080', '1280x720', '1024x768', '1024x1024'];
   $: isBusy = [trimByTime, trimByVideo, mapAnimation].some((state) => state.status === 'loading');
@@ -391,10 +392,9 @@
 
 <div class="page-shell">
   <header class="hero">
-    <h1>Run the GPX Helper API from the browser.</h1>
+    <h1>GPX Helper</h1>
     <p class="lede">
-      Upload a GPX track, pair it with video metadata, and export trimmed tracks or map animations without leaving the
-      page.
+      Trim GPX tracks, sync them to video timestamps, and render map animations directly in your browser.
     </p>
   </header>
 
@@ -625,10 +625,16 @@
   <footer class="site-footer">
     <div>
       <strong>GPX Helper</strong>
-      <p>GPX + video workflows, now directly wired to the FastAPI backend.</p>
+      <p>Copyleft {currentYear} · Built for streamlined GPX and video workflows.</p>
     </div>
-    <a class="ghost" href="https://github.com/OpenAI-Tools/GPX_helper" target="_blank" rel="noreferrer">
-      View the repository
+    <a class="ghost github-link" href="https://github.com/pooriat/GPX_helper" target="_blank" rel="noreferrer">
+      <svg aria-hidden="true" viewBox="0 0 16 16" class="github-icon">
+        <path
+          fill="currentColor"
+          d="M8 0C3.58 0 0 3.58 0 8a8 8 0 005.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.2 1.87.86 2.33.66.07-.52.28-.86.51-1.06-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.01.08-2.1 0 0 .67-.21 2.2.82a7.62 7.62 0 012 0c1.53-1.04 2.2-.82 2.2-.82.44 1.09.16 1.9.08 2.1.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.19 0 .21.15.46.55.38A8 8 0 0016 8c0-4.42-3.58-8-8-8z"
+        />
+      </svg>
+      <span>GitHub</span>
     </a>
   </footer>
 </div>
