@@ -17,19 +17,6 @@
     message: ''
   };
 
-  let trimByVideo = {
-    gpxFile: null,
-    videoFile: null,
-    startLocal: '',
-    endLocal: '',
-    durationSeconds: null,
-    status: 'idle',
-    error: '',
-    downloadUrl: '',
-    filename: '',
-    message: ''
-  };
-
   let mapAnimation = {
     gpxFile: null,
     durationSeconds: 45,
@@ -53,10 +40,10 @@
   const currentYear = new Date().getFullYear();
 
   const resolutionPresets = ['1920x1080', '1280x720', '1024x768', '1024x1024'];
-  $: isBusy = [trimByTime, trimByVideo, mapAnimation].some((state) => state.status === 'loading');
+  $: isBusy = [trimByTime, mapAnimation].some((state) => state.status === 'loading');
 
   onDestroy(() => {
-    [trimByTime, trimByVideo, mapAnimation].forEach((state) => {
+    [trimByTime, mapAnimation].forEach((state) => {
       if (state.downloadUrl) {
         URL.revokeObjectURL(state.downloadUrl);
       }
@@ -164,8 +151,9 @@
 
   async function deriveVideoTimes(file) {
     const durationSeconds = await loadVideoDuration(file);
-    const end = new Date(file.lastModified);
-    const start = new Date(end.getTime() - durationSeconds * 1000);
+    // File timestamp marks the clip start; compute the end using the duration.
+    const start = new Date(file.lastModified);
+    const end = new Date(start.getTime() + durationSeconds * 1000);
     return { durationSeconds, start, end };
   }
 
@@ -272,57 +260,6 @@
       };
     } catch (error) {
       trimByTime = { ...trimByTime, status: 'error', error: parseError(error) };
-    } finally {
-      finishRequest();
-    }
-  }
-
-  async function submitTrimByVideo() {
-    if (trimByVideo.downloadUrl) {
-      URL.revokeObjectURL(trimByVideo.downloadUrl);
-    }
-    startRequest('Trimming GPX with video metadata...');
-    trimByVideo = {
-      ...trimByVideo,
-      status: 'loading',
-      error: '',
-      message: '',
-      downloadUrl: '',
-      filename: ''
-    };
-
-    try {
-      if (!trimByVideo.gpxFile || !trimByVideo.videoFile) {
-        throw new Error('Upload both the GPX track and the matching video.');
-      }
-
-      const { durationSeconds, start, end } = await deriveVideoTimes(trimByVideo.videoFile);
-      if (start >= end) {
-        throw new Error('Video metadata produces an invalid time range.');
-      }
-      const startIso = start.toISOString();
-      const endIso = end.toISOString();
-
-      const formData = new FormData();
-      formData.append('gpx_file', trimByVideo.gpxFile);
-      formData.append('start_time', startIso);
-      formData.append('end_time', endIso);
-      formData.append('duration_seconds', String(durationSeconds));
-
-      const { blob, filename } = await requestFile('/api/v1/gpx/trim-by-video', formData, 'trimmed.gpx');
-      const downloadUrl = URL.createObjectURL(blob);
-      trimByVideo = {
-        ...trimByVideo,
-        status: 'success',
-        downloadUrl,
-        filename,
-        startLocal: toLocalDateTimeValue(start),
-        endLocal: toLocalDateTimeValue(end),
-        durationSeconds,
-        message: `Trimmed ${trimByVideo.gpxFile.name} using ${trimByVideo.videoFile.name} metadata.`
-      };
-    } catch (error) {
-      trimByVideo = { ...trimByVideo, status: 'error', error: parseError(error) };
     } finally {
       finishRequest();
     }
@@ -474,16 +411,16 @@
           </label>
           <label>
             Start time
-            <input type="datetime-local" bind:value={trimByTime.startLocal} required />
+            <input type="datetime-local" step="1" bind:value={trimByTime.startLocal} required />
           </label>
           <label>
             End time
-            <input type="datetime-local" bind:value={trimByTime.endLocal} required />
+            <input type="datetime-local" step="1" bind:value={trimByTime.endLocal} required />
           </label>
           <div class="form-actions">
             <button type="submit" disabled={isBusy}>Trim track</button>
             <p class="hint">
-              Add a video to auto-fill the end time from the file timestamp and the start time as end minus duration.
+              Add a video to auto-fill the start time from the file timestamp and the end time as start plus duration.
               Times are converted to UTC before sending to the API.
             </p>
           </div>
@@ -496,79 +433,6 @@
         {/if}
         {#if trimByTime.downloadUrl}
           <a class="download" href={trimByTime.downloadUrl} download={trimByTime.filename}>Download {trimByTime.filename}</a>
-        {/if}
-      </article>
-
-      <article class="tool-card">
-        <header class="section-header">
-          <p class="section-label">Video-assisted trim</p>
-          <h2>Trim GPX using video</h2>
-          <p class="muted-text">
-            Upload the GPX and companion video to crop the track to the clip duration. Video metadata stays in your
-            browser.
-          </p>
-        </header>
-
-        <form class="form-grid" on:submit|preventDefault={submitTrimByVideo}>
-          <label>
-            GPX file
-            <input
-              type="file"
-              accept=".gpx,application/gpx+xml"
-              on:change={(event) =>
-                (trimByVideo = { ...trimByVideo, gpxFile: event.target.files?.[0] ?? null })}
-              required
-            />
-          </label>
-          <label>
-            Video file
-            <input
-              type="file"
-              accept="video/*"
-              on:change={async (event) => {
-                const file = event.target.files?.[0] ?? null;
-                trimByVideo = {
-                  ...trimByVideo,
-                  videoFile: file,
-                  startLocal: '',
-                  endLocal: '',
-                  durationSeconds: null,
-                  error: ''
-                };
-                if (!file) return;
-                try {
-                  const { durationSeconds, start, end } = await deriveVideoTimes(file);
-                  trimByVideo = {
-                    ...trimByVideo,
-                    videoFile: file,
-                    startLocal: toLocalDateTimeValue(start),
-                    endLocal: toLocalDateTimeValue(end),
-                    durationSeconds,
-                    error: ''
-                  };
-                } catch (error) {
-                  trimByVideo = { ...trimByVideo, error: parseError(error, 'Unable to read video metadata.') };
-                }
-              }}
-              required
-            />
-          </label>
-          <div class="form-actions">
-            <button type="submit" disabled={isBusy}>Trim with video</button>
-            <p class="hint">
-              Uses metadata if available, otherwise falls back to file timestamps. Only the calculated timestamps are
-              sent to the API.
-            </p>
-          </div>
-        </form>
-        {#if trimByVideo.error}
-          <p class="error" role="alert">{trimByVideo.error}</p>
-        {/if}
-        {#if trimByVideo.message}
-          <p class="success" aria-live="polite">{trimByVideo.message}</p>
-        {/if}
-        {#if trimByVideo.downloadUrl}
-          <a class="download" href={trimByVideo.downloadUrl} download={trimByVideo.filename}>Download {trimByVideo.filename}</a>
         {/if}
       </article>
     </section>
