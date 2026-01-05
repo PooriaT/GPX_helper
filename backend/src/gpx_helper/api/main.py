@@ -232,6 +232,8 @@ def animate_gpx_route(
         width_px, height_px = parse_resolution(resolution)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if width_px <= 0 or height_px <= 0:
+        raise HTTPException(status_code=400, detail="resolution must be positive")
     if line_width <= 0:
         raise HTTPException(status_code=400, detail="line_width must be positive")
     if marker_size <= 0:

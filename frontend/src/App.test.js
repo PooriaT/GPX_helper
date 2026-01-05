@@ -17,7 +17,8 @@ describe('App', () => {
       screen.getByRole('heading', { level: 2, name: /Render map animation/i })
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/Duration \(seconds\)/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Resolution/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Resolution width/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Resolution height/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Render animation/i })).toBeInTheDocument();
 
     expect(screen.getAllByLabelText(/^GPX file$/i)).toHaveLength(2);
