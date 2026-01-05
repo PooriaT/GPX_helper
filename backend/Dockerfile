@@ -25,4 +25,4 @@ COPY . /app
 EXPOSE 10000
 
 # Start FastAPI
-CMD ["uvicorn", "gpx_helper.api.main:app", "--host", "0.0.0.0", "--port", "${PORT}"]
+CMD ["sh", "-c", "uvicorn gpx_helper.api.main:app --host 0.0.0.0 --port ${PORT}"]
