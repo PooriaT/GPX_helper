@@ -20,7 +20,8 @@
   let mapAnimation = {
     gpxFile: null,
     durationSeconds: 45,
-    resolution: '1920x1080',
+    resolutionWidth: 1024,
+    resolutionHeight: 1024,
     markerColor: '#0ea5e9',
     trailColor: '#0ea5e9',
     fullTrailColor: '#111827',
@@ -39,7 +40,6 @@
   let estimatedSeconds = null;
   const currentYear = new Date().getFullYear();
 
-  const resolutionPresets = ['1920x1080', '1280x720', '1024x768', '1024x1024'];
   $: isBusy = [trimByTime, mapAnimation].some((state) => state.status === 'loading');
 
   onDestroy(() => {
@@ -292,14 +292,18 @@
       if (!mapAnimation.durationSeconds || mapAnimation.durationSeconds <= 0) {
         throw new Error('Duration must be greater than zero.');
       }
-      if (!mapAnimation.resolution) {
-        throw new Error('Pick a resolution for the export.');
+      if (!mapAnimation.resolutionWidth || !mapAnimation.resolutionHeight) {
+        throw new Error('Enter a resolution for the export.');
       }
+      if (mapAnimation.resolutionWidth <= 0 || mapAnimation.resolutionHeight <= 0) {
+        throw new Error('Resolution must be greater than zero.');
+      }
+      const resolutionLabel = `${mapAnimation.resolutionWidth}x${mapAnimation.resolutionHeight}`;
 
       const formData = new FormData();
       formData.append('gpx_file', mapAnimation.gpxFile);
       formData.append('duration_seconds', String(mapAnimation.durationSeconds));
-      formData.append('resolution', mapAnimation.resolution);
+      formData.append('resolution', resolutionLabel);
       formData.append('marker_color', mapAnimation.markerColor);
       formData.append('trail_color', mapAnimation.trailColor);
       formData.append('full_trail_color', mapAnimation.fullTrailColor);
@@ -323,7 +327,7 @@
         status: 'success',
         downloadUrl,
         filename,
-        message: `Rendered ${filename} (${mapAnimation.resolution}, ${mapAnimation.durationSeconds}s).`
+        message: `Rendered ${filename} (${resolutionLabel}, ${mapAnimation.durationSeconds}s).`
       };
     } catch (error) {
       mapAnimation = { ...mapAnimation, status: 'error', error: parseError(error) };
@@ -476,12 +480,26 @@
           />
         </label>
         <label>
-          Resolution
-          <select bind:value={mapAnimation.resolution}>
-            {#each resolutionPresets as preset}
-              <option value={preset}>{preset}</option>
-            {/each}
-          </select>
+          Resolution width (px)
+          <input
+            type="number"
+            min="1"
+            step="1"
+            bind:value={mapAnimation.resolutionWidth}
+            placeholder="1024"
+            required
+          />
+        </label>
+        <label>
+          Resolution height (px)
+          <input
+            type="number"
+            min="1"
+            step="1"
+            bind:value={mapAnimation.resolutionHeight}
+            placeholder="1024"
+            required
+          />
         </label>
         <label>
           Marker color
