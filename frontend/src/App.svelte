@@ -479,82 +479,92 @@
             required
           />
         </label>
-        <label>
-          Resolution width (px)
-          <input
-            type="number"
-            min="1"
-            step="1"
-            bind:value={mapAnimation.resolutionWidth}
-            placeholder="1024"
-            required
-          />
-        </label>
-        <label>
-          Resolution height (px)
-          <input
-            type="number"
-            min="1"
-            step="1"
-            bind:value={mapAnimation.resolutionHeight}
-            placeholder="1024"
-            required
-          />
-        </label>
-        <label>
-          Marker color
-          <input type="color" bind:value={mapAnimation.markerColor} />
-        </label>
-        <label>
-          Marker size (px)
-          <input
-            type="number"
-            min="1"
-            step="0.5"
-            bind:value={mapAnimation.markerSize}
-            placeholder="6"
-          />
-        </label>
-        <label>
-          Animated trail color
-          <input type="color" bind:value={mapAnimation.trailColor} />
-        </label>
-        <label>
-          Full trail color
-          <input type="color" bind:value={mapAnimation.fullTrailColor} />
-        </label>
-        <label>
-          Full trail opacity
-          <input
-            type="number"
-            min="0"
-            max="1"
-            step="0.05"
-            bind:value={mapAnimation.fullTrailOpacity}
-            placeholder="0.8"
-          />
-        </label>
-        <label>
-          Line width (px)
-          <input
-            type="number"
-            min="0.5"
-            step="0.1"
-            bind:value={mapAnimation.lineWidth}
-            placeholder="2.5"
-          />
-        </label>
-        <label>
-          Animated line opacity
-          <input
-            type="number"
-            min="0"
-            max="1"
-            step="0.05"
-            bind:value={mapAnimation.lineOpacity}
-            placeholder="1"
-          />
-        </label>
+        <div class="options-group">
+          <p class="options-title">Output size</p>
+          <div class="options-grid">
+            <label>
+              Resolution width (px)
+              <input
+                type="number"
+                min="1"
+                step="1"
+                bind:value={mapAnimation.resolutionWidth}
+                placeholder="1024"
+                required
+              />
+            </label>
+            <label>
+              Resolution height (px)
+              <input
+                type="number"
+                min="1"
+                step="1"
+                bind:value={mapAnimation.resolutionHeight}
+                placeholder="1024"
+                required
+              />
+            </label>
+          </div>
+        </div>
+        <div class="options-group">
+          <p class="options-title">Style options</p>
+          <div class="options-grid">
+            <label>
+              Marker color
+              <input type="color" bind:value={mapAnimation.markerColor} />
+            </label>
+            <label>
+              Marker size (px)
+              <input
+                type="number"
+                min="1"
+                step="0.5"
+                bind:value={mapAnimation.markerSize}
+                placeholder="6"
+              />
+            </label>
+            <label>
+              Animated trail color
+              <input type="color" bind:value={mapAnimation.trailColor} />
+            </label>
+            <label>
+              Full trail color
+              <input type="color" bind:value={mapAnimation.fullTrailColor} />
+            </label>
+            <label>
+              Full trail opacity
+              <input
+                type="number"
+                min="0"
+                max="1"
+                step="0.05"
+                bind:value={mapAnimation.fullTrailOpacity}
+                placeholder="0.8"
+              />
+            </label>
+            <label>
+              Line width (px)
+              <input
+                type="number"
+                min="0.5"
+                step="0.1"
+                bind:value={mapAnimation.lineWidth}
+                placeholder="2.5"
+              />
+            </label>
+            <label>
+              Animated line opacity
+              <input
+                type="number"
+                min="0"
+                max="1"
+                step="0.05"
+                bind:value={mapAnimation.lineOpacity}
+                placeholder="1"
+              />
+            </label>
+          </div>
+        </div>
         <div class="form-actions">
           <button type="submit" disabled={isBusy}>Render animation</button>
           <p class="hint">Duration auto-fills from the GPX timestamps when available.</p>

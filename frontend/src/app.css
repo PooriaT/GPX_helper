@@ -239,6 +239,28 @@ select:disabled {
   gap: 12px;
 }
 
+.options-group {
+  grid-column: 1 / -1;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #ffffff;
+  display: grid;
+  gap: 10px;
+}
+
+.options-title {
+  margin: 0;
+  font-weight: 600;
+  color: #111827;
+}
+
+.options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
 label {
   display: grid;
   gap: 6px;
