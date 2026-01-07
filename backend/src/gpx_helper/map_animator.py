@@ -40,6 +40,23 @@ DEFAULT_TILE_URL_TEMPLATE = os.environ.get(
 DEFAULT_TILE_SUBDOMAINS = tuple(
     sd for sd in os.environ.get("MAP_TILE_SUBDOMAINS", "").split(",") if sd
 ) or ("a", "b", "c")
+TILE_PROVIDERS = {
+    "osm": {
+        "label": "OpenStreetMap (Standard)",
+        "template": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        "subdomains": (),
+    },
+    "cyclosm": {
+        "label": "CyclOSM",
+        "template": "https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png",
+        "subdomains": ("a", "b", "c"),
+    },
+    "opentopomap": {
+        "label": "OpenTopoMap",
+        "template": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+        "subdomains": ("a", "b", "c"),
+    },
+}
 TILE_REQUEST_TIMEOUT = float(os.environ.get("MAP_TILE_TIMEOUT_SECONDS", "10"))
 TILE_USER_AGENT = os.environ.get(
     "MAP_TILE_USER_AGENT",
@@ -84,6 +101,17 @@ def _format_tile_url(
         resolved_subdomains = subdomains or ("a", "b", "c")
         format_kwargs["s"] = resolved_subdomains[tile_index % len(resolved_subdomains)]
     return template.format(**format_kwargs)
+
+
+def resolve_tile_provider(tile_type: str | None) -> tuple[str, tuple[str, ...]]:
+    if not tile_type:
+        return DEFAULT_TILE_URL_TEMPLATE, DEFAULT_TILE_SUBDOMAINS
+    key = tile_type.lower()
+    provider = TILE_PROVIDERS.get(key)
+    if not provider:
+        valid = ", ".join(sorted(TILE_PROVIDERS))
+        raise ValueError(f"tile_type must be one of: {valid}")
+    return provider["template"], provider["subdomains"]
 
 
 @lru_cache(maxsize=256)
@@ -221,9 +249,12 @@ def fetch_basemap_image(
     max_lon: float,
     width_px: int,
     height_px: int,
+    *,
+    tile_template: str | None = None,
+    tile_subdomains: tuple[str, ...] | None = None,
 ) -> tuple["Image.Image", tuple[float, float, float, float]]:
     """
-    Fetch and stitch OpenStreetMap tiles for the given bounds.
+    Fetch and stitch map tiles for the given bounds.
     Returns a PIL image and its extent in Web Mercator coordinates.
     """
     from PIL import Image
@@ -237,11 +268,16 @@ def fetch_basemap_image(
     tiles_high = max_y_tile - min_y_tile + 1
     stitched = Image.new("RGB", (tiles_wide * 256, tiles_high * 256))
 
+    resolved_template = tile_template or DEFAULT_TILE_URL_TEMPLATE
+    resolved_subdomains = (
+        tile_subdomains if tile_subdomains is not None else DEFAULT_TILE_SUBDOMAINS
+    )
+
     tile_index = 0
     for x in range(min_x_tile, max_x_tile + 1):
         for y in range(min_y_tile, max_y_tile + 1):
             tile_url = _format_tile_url(
-                DEFAULT_TILE_URL_TEMPLATE, DEFAULT_TILE_SUBDOMAINS, tile_index, zoom, x, y
+                resolved_template, resolved_subdomains, tile_index, zoom, x, y
             )
             tile_index += 1
             try:
@@ -308,9 +344,11 @@ def create_animation(
     line_width: float = 2.5,
     animated_line_opacity: float = 1.0,
     marker_size: float = 6.0,
+    tile_template: str | None = None,
+    tile_subdomains: tuple[str, ...] | None = None,
 ) -> None:
     """
-    Create and save the animation as an MP4 file with OpenStreetMap basemap.
+    Create and save the animation as an MP4 file with a map tile basemap.
     """
 
     dpi = 100
@@ -332,7 +370,14 @@ def create_animation(
     ax.set_axis_off()
 
     basemap_image, basemap_extent = fetch_basemap_image(
-        min_lat, max_lat, min_lon, max_lon, width_px, height_px
+        min_lat,
+        max_lat,
+        min_lon,
+        max_lon,
+        width_px,
+        height_px,
+        tile_template=tile_template,
+        tile_subdomains=tile_subdomains,
     )
     ax.imshow(basemap_image, extent=basemap_extent, origin="upper", aspect="auto")
     ax.set_xlim(basemap_extent[0], basemap_extent[1])

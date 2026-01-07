@@ -22,6 +22,7 @@
     durationSeconds: 45,
     resolutionWidth: 1024,
     resolutionHeight: 1024,
+    tileType: 'osm',
     markerColor: '#0ea5e9',
     trailColor: '#0ea5e9',
     fullTrailColor: '#111827',
@@ -35,6 +36,12 @@
     filename: '',
     message: ''
   };
+
+  const mapTileOptions = [
+    { value: 'osm', label: 'OpenStreetMap (Standard)' },
+    { value: 'cyclosm', label: 'CyclOSM' },
+    { value: 'opentopomap', label: 'OpenTopoMap (Topo)' }
+  ];
 
   let activeRequestLabel = '';
   let estimatedSeconds = null;
@@ -311,6 +318,7 @@
       formData.append('marker_size', String(mapAnimation.markerSize));
       formData.append('line_width', String(mapAnimation.lineWidth));
       formData.append('line_opacity', String(mapAnimation.lineOpacity));
+      formData.append('tile_type', mapAnimation.tileType);
 
       requestEta('/api/v1/gpx/map-animate/estimate', cloneFormData(formData))
         .then((eta) => {
@@ -503,6 +511,19 @@
                 placeholder="1024"
                 required
               />
+            </label>
+          </div>
+        </div>
+        <div class="options-group">
+          <p class="options-title">Map tiles</p>
+          <div class="options-grid">
+            <label>
+              Tile style
+              <select bind:value={mapAnimation.tileType}>
+                {#each mapTileOptions as option}
+                  <option value={option.value}>{option.label}</option>
+                {/each}
+              </select>
             </label>
           </div>
         </div>
