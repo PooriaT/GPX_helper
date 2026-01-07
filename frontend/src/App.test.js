@@ -17,6 +17,7 @@ describe('App', () => {
       screen.getByRole('heading', { level: 2, name: /Render map animation/i })
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/Duration \(seconds\)/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Frames per second/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Resolution width/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Resolution height/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Tile style/i)).toBeInTheDocument();

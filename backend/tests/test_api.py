@@ -131,6 +131,7 @@ class ApiTests(unittest.TestCase):
         }
         data = {
             "duration_seconds": "5",
+            "fps": "24",
             "resolution": "640x480",
             "tile_type": "cyclosm",
         }
@@ -149,6 +150,7 @@ class ApiTests(unittest.TestCase):
             **kwargs,
         ):
             captured.update(kwargs)
+            captured["fps"] = fps
             with open(output_path, "wb") as f:
                 f.write(fake_video)
 
@@ -164,6 +166,7 @@ class ApiTests(unittest.TestCase):
             "https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png",
         )
         self.assertEqual(captured.get("tile_subdomains"), ("a", "b", "c"))
+        self.assertEqual(captured.get("fps"), 24.0)
 
     def test_map_animation_invalid_resolution(self) -> None:
         files = {
@@ -193,6 +196,21 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("duration_seconds", response.json()["detail"])
 
+    def test_map_animation_invalid_fps(self) -> None:
+        files = {
+            "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
+        }
+        data = {
+            "duration_seconds": "5",
+            "fps": "0",
+            "resolution": "640x480",
+        }
+
+        response = self.client.post("/api/v1/gpx/map-animate", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("fps", response.json()["detail"])
+
     def test_map_animation_invalid_tile_type(self) -> None:
         files = {
             "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
@@ -213,17 +231,19 @@ class ApiTests(unittest.TestCase):
         }
         data = {
             "duration_seconds": "5",
+            "fps": "12",
             "resolution": "640x480",
         }
         with mock.patch(
             "gpx_helper.api.main.estimate_animation_seconds", return_value=3.5
-        ):
+        ) as mock_estimate:
             response = self.client.post(
                 "/api/v1/gpx/map-animate/estimate", files=files, data=data
             )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"estimated_seconds": 3.5})
+        self.assertEqual(mock_estimate.call_args.kwargs["fps"], 12.0)
 
     def test_map_animation_eta_invalid_duration(self) -> None:
         files = {
@@ -238,6 +258,21 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("duration_seconds", response.json()["detail"])
+
+    def test_map_animation_eta_invalid_fps(self) -> None:
+        files = {
+            "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
+        }
+        data = {
+            "duration_seconds": "5",
+            "fps": "-1",
+            "resolution": "640x480",
+        }
+
+        response = self.client.post("/api/v1/gpx/map-animate/estimate", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("fps", response.json()["detail"])
 
     def test_map_animation_eta_invalid_tile_type(self) -> None:
         files = {
