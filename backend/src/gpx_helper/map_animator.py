@@ -156,11 +156,11 @@ def _ffmpeg_preset_speed_factor(preset: str) -> float:
     return FFMPEG_PRESET_SPEED.get(preset, FFMPEG_PRESET_SPEED["veryfast"])
 
 
-def _resolve_effective_fps(duration_sec: float, fps: int) -> int:
+def _resolve_effective_fps(duration_sec: float, fps: float) -> float:
     if duration_sec <= 0 or DEFAULT_MAX_FRAMES <= 0:
-        return fps
-    max_fps = max(1, int(DEFAULT_MAX_FRAMES / duration_sec))
-    return min(fps, max_fps)
+        return float(fps)
+    max_fps = DEFAULT_MAX_FRAMES / duration_sec
+    return min(float(fps), max_fps)
 
 
 @lru_cache(maxsize=256)
@@ -348,8 +348,11 @@ def fetch_basemap_image(
 
 
 def prepare_animation_data(
-    xs: list[float], ys: list[float], duration_sec: float, fps: int = DEFAULT_FPS
-) -> tuple[list[int], int, int]:
+    xs: list[float],
+    ys: list[float],
+    duration_sec: float,
+    fps: float = DEFAULT_FPS,
+) -> tuple[list[int], int, float]:
     """
     Prepare per-frame indices along the route.
     """
