@@ -25,6 +25,7 @@ import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.animation import FuncAnimation, FFMpegWriter
 
 if TYPE_CHECKING:
@@ -37,6 +38,7 @@ DEFAULT_TILE_URL_TEMPLATE = os.environ.get(
     "MAP_TILE_URL_TEMPLATE",
     "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
 )
+DEFAULT_FFMPEG_PRESET = os.environ.get("MAP_ANIM_FFMPEG_PRESET", "veryfast")
 DEFAULT_TILE_SUBDOMAINS = tuple(
     sd for sd in os.environ.get("MAP_TILE_SUBDOMAINS", "").split(",") if sd
 ) or ("a", "b", "c")
@@ -63,6 +65,32 @@ TILE_USER_AGENT = os.environ.get(
     "gpx-helper/0.1.0 (contact: pooria_taghdiri@hotmail.com)",
 )
 TILE_REFERER = os.environ.get("MAP_TILE_REFERER", "")
+FFMPEG_PRESET_SPEED = {
+    "ultrafast": 0.55,
+    "superfast": 0.65,
+    "veryfast": 0.75,
+    "faster": 0.85,
+    "fast": 0.95,
+    "medium": 1.0,
+    "slow": 1.15,
+    "slower": 1.3,
+    "veryslow": 1.5,
+}
+
+
+def _read_int_env(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+DEFAULT_FFMPEG_CRF = _read_int_env("MAP_ANIM_FFMPEG_CRF", 23)
+DEFAULT_FFMPEG_THREADS = _read_int_env("MAP_ANIM_FFMPEG_THREADS", 0)
+DEFAULT_MAX_FRAMES = _read_int_env("MAP_ANIM_MAX_FRAMES", 2400)
 
 
 def _compute_tile_range(
@@ -112,6 +140,27 @@ def resolve_tile_provider(tile_type: str | None) -> tuple[str, tuple[str, ...]]:
         valid = ", ".join(sorted(TILE_PROVIDERS))
         raise ValueError(f"tile_type must be one of: {valid}")
     return provider["template"], provider["subdomains"]
+
+
+def _normalize_ffmpeg_preset(preset: str) -> str:
+    normalized = preset.strip().lower()
+    return normalized if normalized in FFMPEG_PRESET_SPEED else "veryfast"
+
+
+def _ffmpeg_extra_args(preset: str, crf: int, threads: int) -> list[str]:
+    args = ["-preset", preset, "-crf", str(crf), "-pix_fmt", "yuv420p", "-threads", str(threads)]
+    return args
+
+
+def _ffmpeg_preset_speed_factor(preset: str) -> float:
+    return FFMPEG_PRESET_SPEED.get(preset, FFMPEG_PRESET_SPEED["veryfast"])
+
+
+def _resolve_effective_fps(duration_sec: float, fps: int) -> int:
+    if duration_sec <= 0 or DEFAULT_MAX_FRAMES <= 0:
+        return fps
+    max_fps = max(1, int(DEFAULT_MAX_FRAMES / duration_sec))
+    return min(fps, max_fps)
 
 
 @lru_cache(maxsize=256)
@@ -323,6 +372,47 @@ def prepare_animation_data(
     return frame_indices, total_frames, fps
 
 
+def resample_route(
+    xs: list[float], ys: list[float], target_points: int
+) -> tuple[list[float], list[float]]:
+    n_points = len(xs)
+    if n_points <= target_points or n_points < 2 or target_points < 2:
+        return xs, ys
+
+    xs_arr = np.asarray(xs, dtype=float)
+    ys_arr = np.asarray(ys, dtype=float)
+    deltas = np.hypot(np.diff(xs_arr), np.diff(ys_arr))
+    cumulative = np.concatenate(([0.0], np.cumsum(deltas)))
+    unique_dist, unique_idx = np.unique(cumulative, return_index=True)
+
+    total_dist = float(unique_dist[-1])
+    if total_dist == 0.0:
+        resampled_xs = np.full(target_points, xs_arr[0], dtype=float)
+        resampled_ys = np.full(target_points, ys_arr[0], dtype=float)
+        return resampled_xs.tolist(), resampled_ys.tolist()
+
+    target_dist = np.linspace(0.0, total_dist, target_points)
+    resampled_xs = np.interp(target_dist, unique_dist, xs_arr[unique_idx])
+    resampled_ys = np.interp(target_dist, unique_dist, ys_arr[unique_idx])
+    return resampled_xs.tolist(), resampled_ys.tolist()
+
+
+def prepare_animation_series(
+    xs: list[float],
+    ys: list[float],
+    duration_sec: float,
+    fps: int = DEFAULT_FPS,
+) -> tuple[list[float], list[float], list[int], int, int]:
+    effective_fps = _resolve_effective_fps(duration_sec, fps)
+    total_frames = max(int(duration_sec * effective_fps), 2)
+    target_points = min(len(xs), total_frames)
+    xs_resampled, ys_resampled = resample_route(xs, ys, target_points)
+    frame_indices, total_frames, effective_fps = prepare_animation_data(
+        xs_resampled, ys_resampled, duration_sec, fps=effective_fps
+    )
+    return xs_resampled, ys_resampled, frame_indices, total_frames, effective_fps
+
+
 def create_animation(
     xs: list[float],
     ys: list[float],
@@ -350,6 +440,8 @@ def create_animation(
     """
     Create and save the animation as an MP4 file with a map tile basemap.
     """
+    xs_arr = np.asarray(xs, dtype=float)
+    ys_arr = np.asarray(ys, dtype=float)
 
     dpi = 100
     fig_width_in = width_px / dpi
@@ -359,10 +451,6 @@ def create_animation(
     # Remove all padding/margins so the basemap fills the frame.
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
     ax.set_position([0, 0, 1, 1])
-
-    # Bounds in Web Mercator
-    min_x, max_x = min(xs), max(xs)
-    min_y, max_y = min(ys), max(ys)
 
     # Hide axis for a more "map-like" look
     ax.set_xticks([])
@@ -385,8 +473,8 @@ def create_animation(
 
     # Static full path
     full_line, = ax.plot(
-        xs,
-        ys,
+        xs_arr,
+        ys_arr,
         linewidth=max(line_width - 0.5, 0.5),
         alpha=max(0.0, min(full_line_opacity, 1.0)),
         color=full_line_color,
@@ -413,15 +501,15 @@ def create_animation(
     )
 
     def init():
-        animated_line.set_data([], [])
+        animated_line.set_data(xs_arr[:0], ys_arr[:0])
         current_point.set_data([], [])
         return animated_line, current_point
 
     def update(frame):
         idx = frame_indices[frame]
 
-        animated_line.set_data(xs[:idx + 1], ys[:idx + 1])
-        current_point.set_data([xs[idx]], [ys[idx]])
+        animated_line.set_data(xs_arr[: idx + 1], ys_arr[: idx + 1])
+        current_point.set_data(xs_arr[idx : idx + 1], ys_arr[idx : idx + 1])
 
         return animated_line, current_point
 
@@ -432,9 +520,12 @@ def create_animation(
         frames=total_frames,
         interval=1000 / fps,
         blit=True,
+        cache_frame_data=False,
     )
 
-    writer = FFMpegWriter(fps=fps, bitrate=3000)
+    preset = _normalize_ffmpeg_preset(DEFAULT_FFMPEG_PRESET)
+    extra_args = _ffmpeg_extra_args(preset, DEFAULT_FFMPEG_CRF, DEFAULT_FFMPEG_THREADS)
+    writer = FFMpegWriter(fps=fps, codec="libx264", extra_args=extra_args)
     print(f"Saving video to {output_path} ...")
     anim.save(output_path, writer=writer)
     plt.close(fig)
@@ -454,7 +545,10 @@ def estimate_animation_seconds(
     Factors in tile downloads and frame rendering work.
     """
     xs, ys = latlon_to_web_mercator(lats, lons)
-    _, total_frames, _ = prepare_animation_data(xs, ys, duration_sec, fps=fps)
+    xs, ys, _, total_frames, fps = prepare_animation_series(xs, ys, duration_sec, fps=fps)
+    n_points = len(xs)
+    preset = _normalize_ffmpeg_preset(DEFAULT_FFMPEG_PRESET)
+    preset_factor = _ffmpeg_preset_speed_factor(preset)
 
     zoom, (min_x_tile, max_x_tile, min_y_tile, max_y_tile) = _compute_tile_range(
         min(lats),
@@ -468,10 +562,14 @@ def estimate_animation_seconds(
 
     # Scale render/encode cost by resolution with a 720p baseline.
     resolution_factor = max(0.5, min((width_px * height_px) / (1280 * 720), 8.0))
+    path_factor = 1.0 + min(n_points / 6000, 0.75)
 
-    tile_seconds = tiles_needed * 0.35  # slightly conservative per-tile cost
-    render_seconds = max(total_frames * 0.015 * resolution_factor, 0.5)
-    encode_seconds = duration_sec * 0.05 * resolution_factor
+    tile_seconds = tiles_needed * 0.4  # conservative per-tile cost
+    render_seconds = max(total_frames * 0.02 * resolution_factor * path_factor, 0.5)
+    encode_seconds = max(
+        total_frames * 0.0045 * resolution_factor * preset_factor,
+        0.5,
+    )
     overhead_seconds = 1.5  # setup/IO overhead
 
     estimate = overhead_seconds + tile_seconds + render_seconds + encode_seconds
@@ -509,7 +607,7 @@ def main():
     print("Converting lat/lon to Web Mercator (EPSG:3857)...")
     xs, ys = latlon_to_web_mercator(lats, lons)
 
-    frame_indices, total_frames, fps = prepare_animation_data(
+    xs, ys, frame_indices, total_frames, fps = prepare_animation_series(
         xs, ys, args.duration, fps=DEFAULT_FPS
     )
 

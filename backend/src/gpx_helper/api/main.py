@@ -18,7 +18,7 @@ from gpx_helper.map_animator import (
     latlon_to_web_mercator,
     load_gpx_points,
     parse_resolution,
-    prepare_animation_data,
+    prepare_animation_series,
     resolve_tile_provider,
 )
 
@@ -261,7 +261,7 @@ def animate_gpx_route(
         try:
             lats, lons = load_gpx_points(gpx_input.name)
             xs, ys = latlon_to_web_mercator(lats, lons)
-            frame_indices, total_frames, fps = prepare_animation_data(
+            xs, ys, frame_indices, total_frames, fps = prepare_animation_series(
                 xs, ys, duration_seconds, fps=30
             )
             create_animation(
