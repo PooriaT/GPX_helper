@@ -20,6 +20,7 @@
   let mapAnimation = {
     gpxFile: null,
     durationSeconds: 45,
+    fps: 30,
     resolutionWidth: 1024,
     resolutionHeight: 1024,
     tileType: '',
@@ -300,6 +301,9 @@
       if (!mapAnimation.durationSeconds || mapAnimation.durationSeconds <= 0) {
         throw new Error('Duration must be greater than zero.');
       }
+      if (!mapAnimation.fps || mapAnimation.fps <= 0) {
+        throw new Error('Frames per second must be greater than zero.');
+      }
       if (!mapAnimation.resolutionWidth || !mapAnimation.resolutionHeight) {
         throw new Error('Enter a resolution for the export.');
       }
@@ -311,6 +315,7 @@
       const formData = new FormData();
       formData.append('gpx_file', mapAnimation.gpxFile);
       formData.append('duration_seconds', String(mapAnimation.durationSeconds));
+      formData.append('fps', String(mapAnimation.fps));
       formData.append('resolution', resolutionLabel);
       formData.append('marker_color', mapAnimation.markerColor);
       formData.append('trail_color', mapAnimation.trailColor);
@@ -487,6 +492,17 @@
             step="1"
             bind:value={mapAnimation.durationSeconds}
             placeholder="45"
+            required
+          />
+        </label>
+        <label>
+          Frames per second (fps)
+          <input
+            type="number"
+            min="1"
+            step="1"
+            bind:value={mapAnimation.fps}
+            placeholder="30"
             required
           />
         </label>

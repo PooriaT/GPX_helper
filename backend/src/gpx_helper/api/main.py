@@ -14,6 +14,7 @@ from starlette.datastructures import UploadFile as StarletteUploadFile
 from gpx_helper.gpx_splitter import crop_gpx_by_time, get_gpx_time_range
 from gpx_helper.map_animator import (
     create_animation,
+    DEFAULT_FPS,
     estimate_animation_seconds,
     latlon_to_web_mercator,
     load_gpx_points,
@@ -170,6 +171,7 @@ def trim_by_video(
 def estimate_map_animation(
     gpx_file: UploadFile | str | None = File(None),
     duration_seconds: float = Form(...),
+    fps: float = Form(DEFAULT_FPS),
     resolution: str = Form(...),
     marker_color: str = Form("#0ea5e9"),
     trail_color: str = Form("#0ea5e9"),
@@ -184,6 +186,8 @@ def estimate_map_animation(
 
     if duration_seconds <= 0:
         raise HTTPException(status_code=400, detail="duration_seconds must be positive")
+    if fps <= 0:
+        raise HTTPException(status_code=400, detail="fps must be positive")
 
     try:
         width_px, height_px = parse_resolution(resolution)
@@ -208,7 +212,7 @@ def estimate_map_animation(
         try:
             lats, lons = load_gpx_points(gpx_input.name)
             estimated_seconds = estimate_animation_seconds(
-                lats, lons, width_px, height_px, duration_seconds
+                lats, lons, width_px, height_px, duration_seconds, fps=fps
             )
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -220,6 +224,7 @@ def estimate_map_animation(
 def animate_gpx_route(
     gpx_file: UploadFile | str | None = File(None),
     duration_seconds: float = Form(...),
+    fps: float = Form(DEFAULT_FPS),
     resolution: str = Form(...),
     marker_color: str = Form("#0ea5e9"),
     trail_color: str = Form("#0ea5e9"),
@@ -234,6 +239,8 @@ def animate_gpx_route(
 
     if duration_seconds <= 0:
         raise HTTPException(status_code=400, detail="duration_seconds must be positive")
+    if fps <= 0:
+        raise HTTPException(status_code=400, detail="fps must be positive")
 
     try:
         width_px, height_px = parse_resolution(resolution)
@@ -262,7 +269,7 @@ def animate_gpx_route(
             lats, lons = load_gpx_points(gpx_input.name)
             xs, ys = latlon_to_web_mercator(lats, lons)
             xs, ys, frame_indices, total_frames, fps = prepare_animation_series(
-                xs, ys, duration_seconds, fps=30
+                xs, ys, duration_seconds, fps=fps
             )
             create_animation(
                 xs,
