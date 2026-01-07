@@ -22,7 +22,7 @@
     durationSeconds: 45,
     resolutionWidth: 1024,
     resolutionHeight: 1024,
-    tileType: 'osm',
+    tileType: '',
     markerColor: '#0ea5e9',
     trailColor: '#0ea5e9',
     fullTrailColor: '#111827',
@@ -38,6 +38,7 @@
   };
 
   const mapTileOptions = [
+    { value: '', label: 'Server default' },
     { value: 'osm', label: 'OpenStreetMap (Standard)' },
     { value: 'cyclosm', label: 'CyclOSM' },
     { value: 'opentopomap', label: 'OpenTopoMap (Topo)' }
@@ -318,7 +319,9 @@
       formData.append('marker_size', String(mapAnimation.markerSize));
       formData.append('line_width', String(mapAnimation.lineWidth));
       formData.append('line_opacity', String(mapAnimation.lineOpacity));
-      formData.append('tile_type', mapAnimation.tileType);
+      if (mapAnimation.tileType) {
+        formData.append('tile_type', mapAnimation.tileType);
+      }
 
       requestEta('/api/v1/gpx/map-animate/estimate', cloneFormData(formData))
         .then((eta) => {
