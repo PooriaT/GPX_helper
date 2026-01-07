@@ -19,6 +19,7 @@ from gpx_helper.map_animator import (
     load_gpx_points,
     parse_resolution,
     prepare_animation_data,
+    resolve_tile_provider,
 )
 
 API_VERSION = "v1"
@@ -177,6 +178,7 @@ def estimate_map_animation(
     line_width: float = Form(2.5),
     line_opacity: float = Form(1.0),
     marker_size: float = Form(6.0),
+    tile_type: str | None = Form(None),
 ) -> JSONResponse:
     gpx_file = _validate_upload(gpx_file, "gpx_file")
 
@@ -196,6 +198,10 @@ def estimate_map_animation(
     for label, opacity in (("full_trail_opacity", full_trail_opacity), ("line_opacity", line_opacity)):
         if opacity < 0 or opacity > 1:
             raise HTTPException(status_code=400, detail=f"{label} must be between 0 and 1")
+    try:
+        resolve_tile_provider(tile_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     with tempfile.NamedTemporaryFile(suffix=".gpx") as gpx_input:
         _write_upload_to_file(gpx_file, gpx_input, "GPX")
@@ -222,6 +228,7 @@ def animate_gpx_route(
     line_width: float = Form(2.5),
     line_opacity: float = Form(1.0),
     marker_size: float = Form(6.0),
+    tile_type: str | None = Form(None),
 ) -> StreamingResponse:
     gpx_file = _validate_upload(gpx_file, "gpx_file")
 
@@ -241,6 +248,10 @@ def animate_gpx_route(
     for label, opacity in (("full_trail_opacity", full_trail_opacity), ("line_opacity", line_opacity)):
         if opacity < 0 or opacity > 1:
             raise HTTPException(status_code=400, detail=f"{label} must be between 0 and 1")
+    try:
+        tile_template, tile_subdomains = resolve_tile_provider(tile_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     with tempfile.NamedTemporaryFile(suffix=".gpx") as gpx_input, tempfile.NamedTemporaryFile(
         suffix=".mp4"
@@ -273,6 +284,8 @@ def animate_gpx_route(
                 line_width=line_width,
                 animated_line_opacity=line_opacity,
                 marker_size=marker_size,
+                tile_template=tile_template,
+                tile_subdomains=tile_subdomains,
             )
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

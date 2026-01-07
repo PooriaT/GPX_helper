@@ -132,8 +132,10 @@ class ApiTests(unittest.TestCase):
         data = {
             "duration_seconds": "5",
             "resolution": "640x480",
+            "tile_type": "cyclosm",
         }
         fake_video = b"mp4-bytes"
+        captured = {}
 
         def _fake_animation(
             xs,
@@ -146,6 +148,7 @@ class ApiTests(unittest.TestCase):
             output_path,
             **kwargs,
         ):
+            captured.update(kwargs)
             with open(output_path, "wb") as f:
                 f.write(fake_video)
 
@@ -156,6 +159,11 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.headers["content-type"], "video/mp4")
         self.assertEqual(response.content, fake_video)
         self.assertIn("attachment; filename=route.mp4", response.headers["content-disposition"])
+        self.assertEqual(
+            captured.get("tile_template"),
+            "https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png",
+        )
+        self.assertEqual(captured.get("tile_subdomains"), ("a", "b", "c"))
 
     def test_map_animation_invalid_resolution(self) -> None:
         files = {
@@ -185,6 +193,20 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("duration_seconds", response.json()["detail"])
 
+    def test_map_animation_invalid_tile_type(self) -> None:
+        files = {
+            "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
+        }
+        data = {
+            "duration_seconds": "5",
+            "resolution": "640x480",
+            "tile_type": "not-a-tile",
+        }
+
+        response = self.client.post("/api/v1/gpx/map-animate", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("tile_type", response.json()["detail"])
     def test_map_animation_eta_success(self) -> None:
         files = {
             "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
@@ -216,6 +238,21 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("duration_seconds", response.json()["detail"])
+
+    def test_map_animation_eta_invalid_tile_type(self) -> None:
+        files = {
+            "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
+        }
+        data = {
+            "duration_seconds": "5",
+            "resolution": "640x480",
+            "tile_type": "bad-tile",
+        }
+
+        response = self.client.post("/api/v1/gpx/map-animate/estimate", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("tile_type", response.json()["detail"])
 
 
 if __name__ == "__main__":

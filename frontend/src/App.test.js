@@ -19,6 +19,7 @@ describe('App', () => {
     expect(screen.getByLabelText(/Duration \(seconds\)/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Resolution width/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Resolution height/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Tile style/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Render animation/i })).toBeInTheDocument();
 
     expect(screen.getAllByLabelText(/^GPX file$/i)).toHaveLength(2);
