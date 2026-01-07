@@ -66,6 +66,16 @@ class MapAnimatorTests(unittest.TestCase):
         self.assertEqual(len(ys_out), len(ys))
         self.assertEqual(len(frame_indices), total_frames)
 
+    def test_prepare_animation_series_caps_total_frames_for_long_duration(self) -> None:
+        xs = [0.0, 1.0, 2.0]
+        ys = [0.0, 1.0, 2.0]
+
+        with mock.patch.object(map_animator, "DEFAULT_MAX_FRAMES", 2400):
+            _, _, _, total_frames, fps = prepare_animation_series(xs, ys, 3600.0, fps=30)
+
+        self.assertLessEqual(total_frames, map_animator.DEFAULT_MAX_FRAMES)
+        self.assertLess(fps, 1.0)
+
     def test_estimate_animation_seconds_respects_preset_speed(self) -> None:
         lats = [0.0, 0.0, 0.01]
         lons = [0.0, 0.01, 0.02]
