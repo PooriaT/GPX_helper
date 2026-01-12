@@ -529,6 +529,8 @@ def create_animation(
         tile_subdomains=tile_subdomains,
     )
     base_image = basemap_image.convert("RGBA")
+    if base_image.size != (width_px, height_px):
+        base_image = base_image.resize((width_px, height_px), Image.Resampling.LANCZOS)
     point_pixels = _project_points_to_pixels(
         xs_arr, ys_arr, basemap_extent, width_px, height_px
     )
