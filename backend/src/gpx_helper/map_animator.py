@@ -16,20 +16,12 @@ import argparse
 import math
 import os
 from functools import lru_cache
-from typing import Iterable, TYPE_CHECKING
+from typing import Iterable
 
 import gpxpy
 import gpxpy.gpx
-import matplotlib
-
-matplotlib.use("Agg")
-
-import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.animation import FuncAnimation, FFMpegWriter
-
-if TYPE_CHECKING:
-    from PIL import Image
+from PIL import Image, ImageColor, ImageDraw
 
 EARTH_RADIUS_METERS = 6_378_137.0
 MAX_MERCATOR_LAT = 85.05112878
@@ -416,6 +408,86 @@ def prepare_animation_series(
     return xs_resampled, ys_resampled, frame_indices, total_frames, effective_fps
 
 
+def _hex_to_rgba(color: str, opacity: float) -> tuple[int, int, int, int]:
+    rgb = ImageColor.getrgb(color)
+    alpha = int(max(0.0, min(opacity, 1.0)) * 255)
+    return rgb[0], rgb[1], rgb[2], alpha
+
+
+def _project_points_to_pixels(
+    xs: np.ndarray,
+    ys: np.ndarray,
+    extent: tuple[float, float, float, float],
+    width_px: int,
+    height_px: int,
+) -> list[tuple[float, float]]:
+    min_x, max_x, min_y, max_y = extent
+    x_scale = width_px / (max_x - min_x)
+    y_scale = height_px / (max_y - min_y)
+    xs_px = (xs - min_x) * x_scale
+    ys_px = (max_y - ys) * y_scale
+    return list(zip(xs_px.tolist(), ys_px.tolist()))
+
+
+def _build_marker_image(
+    marker_color: str,
+    marker_size: float,
+    *,
+    edge_color: str = "white",
+    edge_width: float = 1.0,
+) -> tuple[Image.Image, int]:
+    radius = max(2, int(round(marker_size)))
+    diameter = radius * 2 + int(round(edge_width * 2))
+    marker_img = Image.new("RGBA", (diameter, diameter), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(marker_img)
+    fill = _hex_to_rgba(marker_color, 1.0)
+    outline = _hex_to_rgba(edge_color, 1.0)
+    center = diameter // 2
+    bbox = [
+        center - radius,
+        center - radius,
+        center + radius,
+        center + radius,
+    ]
+    draw.ellipse(bbox, fill=fill, outline=outline, width=max(1, int(round(edge_width))))
+    return marker_img, center
+
+
+def _open_ffmpeg_writer(
+    output_path: str,
+    *,
+    width_px: int,
+    height_px: int,
+    fps: int,
+) -> "subprocess.Popen[bytes]":
+    import subprocess
+
+    preset = _normalize_ffmpeg_preset(DEFAULT_FFMPEG_PRESET)
+    extra_args = _ffmpeg_extra_args(preset, DEFAULT_FFMPEG_CRF, DEFAULT_FFMPEG_THREADS)
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-f",
+        "rawvideo",
+        "-vcodec",
+        "rawvideo",
+        "-pix_fmt",
+        "rgba",
+        "-s",
+        f"{width_px}x{height_px}",
+        "-r",
+        str(fps),
+        "-i",
+        "-",
+        "-an",
+        "-vcodec",
+        "libx264",
+        *extra_args,
+        output_path,
+    ]
+    return subprocess.Popen(cmd, stdin=subprocess.PIPE)
+
+
 def create_animation(
     xs: list[float],
     ys: list[float],
@@ -446,20 +518,6 @@ def create_animation(
     xs_arr = np.asarray(xs, dtype=float)
     ys_arr = np.asarray(ys, dtype=float)
 
-    dpi = 100
-    fig_width_in = width_px / dpi
-    fig_height_in = height_px / dpi
-
-    fig, ax = plt.subplots(figsize=(fig_width_in, fig_height_in), dpi=dpi)
-    # Remove all padding/margins so the basemap fills the frame.
-    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
-    ax.set_position([0, 0, 1, 1])
-
-    # Hide axis for a more "map-like" look
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.set_axis_off()
-
     basemap_image, basemap_extent = fetch_basemap_image(
         min_lat,
         max_lat,
@@ -470,68 +528,58 @@ def create_animation(
         tile_template=tile_template,
         tile_subdomains=tile_subdomains,
     )
-    ax.imshow(basemap_image, extent=basemap_extent, origin="upper", aspect="auto")
-    ax.set_xlim(basemap_extent[0], basemap_extent[1])
-    ax.set_ylim(basemap_extent[2], basemap_extent[3])
-
-    # Static full path
-    full_line, = ax.plot(
-        xs_arr,
-        ys_arr,
-        linewidth=max(line_width - 0.5, 0.5),
-        alpha=max(0.0, min(full_line_opacity, 1.0)),
-        color=full_line_color,
+    base_image = basemap_image.convert("RGBA")
+    point_pixels = _project_points_to_pixels(
+        xs_arr, ys_arr, basemap_extent, width_px, height_px
     )
 
-    # Dynamic path up to current position
-    animated_line, = ax.plot(
-        [],
-        [],
-        linewidth=max(line_width, 0.5),
-        color=animated_line_color,
-        alpha=max(0.0, min(animated_line_opacity, 1.0)),
+    static_draw = ImageDraw.Draw(base_image, "RGBA")
+    static_draw.line(
+        point_pixels,
+        fill=_hex_to_rgba(full_line_color, full_line_opacity),
+        width=max(1, int(round(line_width))),
     )
 
-    # Current position marker
-    current_point, = ax.plot(
-        [],
-        [],
-        marker="o",
-        markersize=max(marker_size, 1.0),
-        color=marker_color,
-        markeredgecolor="white",
-        markeredgewidth=0.8,
+    trail_image = Image.new("RGBA", base_image.size, (0, 0, 0, 0))
+    trail_draw = ImageDraw.Draw(trail_image, "RGBA")
+    trail_color = _hex_to_rgba(animated_line_color, animated_line_opacity)
+    marker_image, marker_offset = _build_marker_image(
+        marker_color, marker_size, edge_width=0.8
     )
 
-    def init():
-        animated_line.set_data(xs_arr[:0], ys_arr[:0])
-        current_point.set_data([], [])
-        return animated_line, current_point
-
-    def update(frame):
-        idx = frame_indices[frame]
-
-        animated_line.set_data(xs_arr[: idx + 1], ys_arr[: idx + 1])
-        current_point.set_data(xs_arr[idx : idx + 1], ys_arr[idx : idx + 1])
-
-        return animated_line, current_point
-
-    anim = FuncAnimation(
-        fig,
-        update,
-        init_func=init,
-        frames=total_frames,
-        interval=1000 / fps,
-        blit=True,
-        cache_frame_data=False,
-    )
-
-    preset = _normalize_ffmpeg_preset(DEFAULT_FFMPEG_PRESET)
-    extra_args = _ffmpeg_extra_args(preset, DEFAULT_FFMPEG_CRF, DEFAULT_FFMPEG_THREADS)
-    writer = FFMpegWriter(fps=fps, codec="libx264", extra_args=extra_args)
     print(f"Saving video to {output_path} ...")
-    anim.save(output_path, writer=writer)
-    plt.close(fig)
+    ffmpeg_proc = _open_ffmpeg_writer(
+        output_path, width_px=width_px, height_px=height_px, fps=fps
+    )
+    if ffmpeg_proc.stdin is None:
+        raise RuntimeError("Failed to open ffmpeg pipe for writing.")
+
+    last_idx = frame_indices[0]
+    try:
+        for frame in range(total_frames):
+            idx = frame_indices[frame]
+            if idx > last_idx:
+                for seg_idx in range(last_idx, idx):
+                    trail_draw.line(
+                        [point_pixels[seg_idx], point_pixels[seg_idx + 1]],
+                        fill=trail_color,
+                        width=max(1, int(round(line_width))),
+                    )
+                last_idx = idx
+
+            frame_image = Image.alpha_composite(base_image, trail_image)
+            marker_x, marker_y = point_pixels[idx]
+            marker_position = (
+                int(round(marker_x - marker_offset)),
+                int(round(marker_y - marker_offset)),
+            )
+            frame_image.paste(marker_image, marker_position, marker_image)
+            ffmpeg_proc.stdin.write(frame_image.tobytes())
+    finally:
+        ffmpeg_proc.stdin.close()
+        return_code = ffmpeg_proc.wait()
+        if return_code != 0:
+            raise RuntimeError(f"ffmpeg exited with status {return_code}.")
     print("Done.")
 
 
