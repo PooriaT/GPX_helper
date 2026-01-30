@@ -251,6 +251,17 @@ def lonlat_to_tile(lon: float, lat: float, zoom: int) -> tuple[int, int]:
     return int(x // 256), int(y // 256)
 
 
+def pixel_to_lonlat(x: float, y: float, zoom: int) -> tuple[float, float]:
+    """
+    Convert pixel coordinates at a given zoom to lon/lat.
+    """
+    n = 2.0 ** zoom
+    lon = x / (256.0 * n) * 360.0 - 180.0
+    lat_rad = math.atan(math.sinh(math.pi * (1 - 2 * y / (256.0 * n))))
+    lat = math.degrees(lat_rad)
+    return lon, lat
+
+
 def tile_xy_to_lonlat(x: int, y: int, zoom: int) -> tuple[float, float]:
     """
     Convert tile x/y at a given zoom to lon/lat for the tile's NW corner.
@@ -283,6 +294,65 @@ def choose_zoom_for_bounds(
     return 0
 
 
+def _compute_tile_fetch_window(
+    min_lat: float,
+    max_lat: float,
+    min_lon: float,
+    max_lon: float,
+    width_px: int,
+    height_px: int,
+    *,
+    max_zoom: int = 18,
+) -> tuple[int, tuple[int, int, int, int], tuple[int, int, int, int], tuple[int, int, int, int]]:
+    """
+    Compute the zoom, tile bounds, and pixel window for a desired output size.
+
+    Returns:
+        zoom,
+        (min_x_tile, max_x_tile, min_y_tile, max_y_tile),
+        (left, top, right, bottom) desired window in pixel space,
+        (fetch_left, fetch_top, fetch_right, fetch_bottom) window clamped to world pixels.
+    """
+    zoom = choose_zoom_for_bounds(
+        min_lat, max_lat, min_lon, max_lon, width_px, height_px, max_zoom=max_zoom
+    )
+
+    x_min, y_max = lonlat_to_pixel(min_lon, max_lat, zoom)
+    x_max, y_min = lonlat_to_pixel(max_lon, min_lat, zoom)
+    cx = (x_min + x_max) / 2.0
+    cy = (y_min + y_max) / 2.0
+
+    left = int(round(cx - width_px / 2.0))
+    top = int(round(cy - height_px / 2.0))
+    right = left + width_px
+    bottom = top + height_px
+
+    world_px = int(256 * (2 ** zoom))
+    fetch_left = max(0, left)
+    fetch_top = max(0, top)
+    fetch_right = min(world_px, right)
+    fetch_bottom = min(world_px, bottom)
+
+    if fetch_right <= fetch_left or fetch_bottom <= fetch_top:
+        raise RuntimeError("Computed basemap window does not intersect world bounds.")
+
+    min_x_tile = int(math.floor(fetch_left / 256))
+    max_x_tile = int(math.floor((fetch_right - 1) / 256))
+    min_y_tile = int(math.floor(fetch_top / 256))
+    max_y_tile = int(math.floor((fetch_bottom - 1) / 256))
+
+    max_tile_index = 2 ** zoom - 1
+    min_x_tile = max(0, min(min_x_tile, max_tile_index))
+    max_x_tile = max(0, min(max_x_tile, max_tile_index))
+    min_y_tile = max(0, min(min_y_tile, max_tile_index))
+    max_y_tile = max(0, min(max_y_tile, max_tile_index))
+
+    tile_bounds = (min_x_tile, max_x_tile, min_y_tile, max_y_tile)
+    desired_window = (left, top, right, bottom)
+    fetch_window = (fetch_left, fetch_top, fetch_right, fetch_bottom)
+    return zoom, tile_bounds, desired_window, fetch_window
+
+
 def fetch_basemap_image(
     min_lat: float,
     max_lat: float,
@@ -301,8 +371,10 @@ def fetch_basemap_image(
     from PIL import Image
     from io import BytesIO
 
-    zoom, (min_x_tile, max_x_tile, min_y_tile, max_y_tile) = _compute_tile_range(
-        min_lat, max_lat, min_lon, max_lon, width_px, height_px
+    zoom, (min_x_tile, max_x_tile, min_y_tile, max_y_tile), window, fetch_window = (
+        _compute_tile_fetch_window(
+            min_lat, max_lat, min_lon, max_lon, width_px, height_px
+        )
     )
 
     tiles_wide = max_x_tile - min_x_tile + 1
@@ -330,13 +402,31 @@ def fetch_basemap_image(
             y_offset = (y - min_y_tile) * 256
             stitched.paste(tile_image, (x_offset, y_offset))
 
-    west_lon, north_lat = tile_xy_to_lonlat(min_x_tile, min_y_tile, zoom)
-    east_lon, south_lat = tile_xy_to_lonlat(max_x_tile + 1, max_y_tile + 1, zoom)
+    left, top, right, bottom = window
+    fetch_left, fetch_top, fetch_right, fetch_bottom = fetch_window
+
+    crop_left = int(fetch_left - min_x_tile * 256)
+    crop_top = int(fetch_top - min_y_tile * 256)
+    crop_right = crop_left + int(fetch_right - fetch_left)
+    crop_bottom = crop_top + int(fetch_bottom - fetch_top)
+    cropped = stitched.crop((crop_left, crop_top, crop_right, crop_bottom))
+
+    if cropped.size != (width_px, height_px):
+        padded = Image.new("RGB", (width_px, height_px), color=(230, 230, 230))
+        paste_x = int(fetch_left - left)
+        paste_y = int(fetch_top - top)
+        padded.paste(cropped, (paste_x, paste_y))
+        final_image = padded
+    else:
+        final_image = cropped
+
+    west_lon, north_lat = pixel_to_lonlat(left, top, zoom)
+    east_lon, south_lat = pixel_to_lonlat(right, bottom, zoom)
     min_x_merc, max_y_merc = latlon_to_web_mercator_point(north_lat, west_lon)
     max_x_merc, min_y_merc = latlon_to_web_mercator_point(south_lat, east_lon)
 
     extent = (min_x_merc, max_x_merc, min_y_merc, max_y_merc)
-    return stitched, extent
+    return final_image, extent
 
 
 def prepare_animation_data(
@@ -530,7 +620,7 @@ def create_animation(
     )
     base_image = basemap_image.convert("RGBA")
     if base_image.size != (width_px, height_px):
-        base_image = base_image.resize((width_px, height_px), Image.Resampling.LANCZOS)
+        raise RuntimeError("Basemap fetch did not return the requested output size.")
     point_pixels = _project_points_to_pixels(
         xs_arr, ys_arr, basemap_extent, width_px, height_px
     )
@@ -603,7 +693,7 @@ def estimate_animation_seconds(
     preset = _normalize_ffmpeg_preset(DEFAULT_FFMPEG_PRESET)
     preset_factor = _ffmpeg_preset_speed_factor(preset)
 
-    zoom, (min_x_tile, max_x_tile, min_y_tile, max_y_tile) = _compute_tile_range(
+    zoom, (min_x_tile, max_x_tile, min_y_tile, max_y_tile), _, _ = _compute_tile_fetch_window(
         min(lats),
         max(lats),
         min(lons),
