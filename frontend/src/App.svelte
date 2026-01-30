@@ -73,6 +73,14 @@
     return fallback;
   }
 
+  function deriveMp4Filename(file, fallback) {
+    const name = file?.name;
+    if (!name) return fallback;
+    const base = name.replace(/\.[^./\\]+$/, '');
+    if (!base) return fallback;
+    return `${base}.mp4`;
+  }
+
   function toIsoString(localValue, label) {
     if (!localValue) {
       throw new Error(`${label} is required.`);
@@ -336,7 +344,8 @@
           estimatedSeconds = null;
         });
 
-      const { blob, filename } = await requestFile('/api/v1/gpx/map-animate', formData, 'route.mp4');
+      const fallbackName = deriveMp4Filename(mapAnimation.gpxFile, 'route.mp4');
+      const { blob, filename } = await requestFile('/api/v1/gpx/map-animate', formData, fallbackName);
       const downloadUrl = URL.createObjectURL(blob);
       mapAnimation = {
         ...mapAnimation,

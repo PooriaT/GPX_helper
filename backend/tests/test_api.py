@@ -160,7 +160,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["content-type"], "video/mp4")
         self.assertEqual(response.content, fake_video)
-        self.assertIn("attachment; filename=route.mp4", response.headers["content-disposition"])
+        self.assertIn("attachment; filename=track.mp4", response.headers["content-disposition"])
         self.assertEqual(
             captured.get("tile_template"),
             "https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png",

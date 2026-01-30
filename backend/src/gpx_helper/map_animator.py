@@ -730,8 +730,8 @@ def main():
     parser.add_argument(
         "-o",
         "--output",
-        default="output.mp4",
-        help="Output video file (default: output.mp4)",
+        default=None,
+        help="Output video file (default: <gpx filename>.mp4)",
     )
 
     args = parser.parse_args()
@@ -742,6 +742,13 @@ def main():
         return
 
     width_px, height_px = parse_resolution(args.resolution)
+
+    if args.output:
+        output_path = args.output
+    else:
+        gpx_dir = os.path.dirname(os.path.abspath(gpx_path))
+        gpx_stem = os.path.splitext(os.path.basename(gpx_path))[0]
+        output_path = os.path.join(gpx_dir, f"{gpx_stem}.mp4")
 
     print("Loading GPX...")
     lats, lons = load_gpx_points(gpx_path)
@@ -762,7 +769,7 @@ def main():
         fps,
         width_px,
         height_px,
-        args.output,
+        output_path,
         min_lat=min(lats),
         max_lat=max(lats),
         min_lon=min(lons),
