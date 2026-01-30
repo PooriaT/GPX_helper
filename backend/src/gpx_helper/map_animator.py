@@ -262,6 +262,17 @@ def pixel_to_lonlat(x: float, y: float, zoom: int) -> tuple[float, float]:
     return lon, lat
 
 
+def pixel_to_web_mercator(x: float, y: float, zoom: int) -> tuple[float, float]:
+    """
+    Convert pixel coordinates at a given zoom to Web Mercator meters.
+    """
+    world_px = 256.0 * (2.0 ** zoom)
+    mercator_max = math.pi * EARTH_RADIUS_METERS
+    x_merc = (x / world_px - 0.5) * 2.0 * mercator_max
+    y_merc = (0.5 - y / world_px) * 2.0 * mercator_max
+    return x_merc, y_merc
+
+
 def tile_xy_to_lonlat(x: int, y: int, zoom: int) -> tuple[float, float]:
     """
     Convert tile x/y at a given zoom to lon/lat for the tile's NW corner.
@@ -420,10 +431,8 @@ def fetch_basemap_image(
     else:
         final_image = cropped
 
-    west_lon, north_lat = pixel_to_lonlat(left, top, zoom)
-    east_lon, south_lat = pixel_to_lonlat(right, bottom, zoom)
-    min_x_merc, max_y_merc = latlon_to_web_mercator_point(north_lat, west_lon)
-    max_x_merc, min_y_merc = latlon_to_web_mercator_point(south_lat, east_lon)
+    min_x_merc, max_y_merc = pixel_to_web_mercator(left, top, zoom)
+    max_x_merc, min_y_merc = pixel_to_web_mercator(right, bottom, zoom)
 
     extent = (min_x_merc, max_x_merc, min_y_merc, max_y_merc)
     return final_image, extent
