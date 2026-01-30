@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from io import BytesIO
+import os
 import shutil
 import tempfile
 from typing import BinaryIO
@@ -298,4 +299,7 @@ def animate_gpx_route(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
         video_output.seek(0)
-        return _stream_payload(video_output.read(), "route.mp4", "video/mp4")
+        upload_name = os.path.basename(gpx_file.filename or "")
+        stem = os.path.splitext(upload_name)[0] if upload_name else "route"
+        output_name = f"{stem}.mp4"
+        return _stream_payload(video_output.read(), output_name, "video/mp4")
