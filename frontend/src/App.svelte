@@ -267,19 +267,28 @@
     return `${label} spans ${formatUtcLabel(start)} to ${formatUtcLabel(end)}, but the GPX track only covers ${formatUtcLabel(gpxRange.start)} to ${formatUtcLabel(gpxRange.end)}.`;
   }
 
+  async function ensureRangeFitsGpx(label, start, end, gpxFile) {
+    if (!gpxFile) {
+      return;
+    }
+
+    const gpxRange = await parseGpxTimeRange(gpxFile);
+    if (!gpxRange) {
+      throw new Error('The GPX file does not contain readable timestamps.');
+    }
+
+    if (start < gpxRange.start || end > gpxRange.end) {
+      throw new Error(buildVideoRangeError(label, start, end, gpxRange));
+    }
+  }
+
   async function ensureVideoFitsGpx(videoFile, gpxFile) {
     if (!videoFile || !gpxFile) {
       return;
     }
 
-    const [videoRange, gpxRange] = await Promise.all([deriveVideoTimes(videoFile), parseGpxTimeRange(gpxFile)]);
-    if (!gpxRange) {
-      throw new Error('The GPX file does not contain readable timestamps.');
-    }
-
-    if (videoRange.start < gpxRange.start || videoRange.end > gpxRange.end) {
-      throw new Error(buildVideoRangeError(`Video "${videoFile.name}"`, videoRange.start, videoRange.end, gpxRange));
-    }
+    const videoRange = await deriveVideoTimes(videoFile);
+    await ensureRangeFitsGpx(`Video "${videoFile.name}"`, videoRange.start, videoRange.end, gpxFile);
   }
 
   async function ensureVideosFitGpx(clips, gpxFile) {
@@ -372,12 +381,14 @@
       if (!trimByTime.gpxFile) {
         throw new Error('Upload a GPX track to trim.');
       }
-      await ensureVideoFitsGpx(trimByTime.videoFile, trimByTime.gpxFile);
       const startIso = toIsoString(trimByTime.startLocal, 'Start time');
       const endIso = toIsoString(trimByTime.endLocal, 'End time');
-      if (new Date(startIso) >= new Date(endIso)) {
+      const startDate = new Date(startIso);
+      const endDate = new Date(endIso);
+      if (startDate >= endDate) {
         throw new Error('Start time must be before end time.');
       }
+      await ensureRangeFitsGpx('Selected trim range', startDate, endDate, trimByTime.gpxFile);
 
       const formData = new FormData();
       formData.append('gpx_file', trimByTime.gpxFile);
