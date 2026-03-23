@@ -30,7 +30,7 @@ function makeBox(type, payload) {
   return box;
 }
 
-function makeMvhdPayload(date, version = 0) {
+function makeHeaderPayload(date, version = 0) {
   const creationTimeSeconds = Math.floor((date.getTime() - QUICKTIME_EPOCH_OFFSET_MS) / 1000);
 
   if (version === 1) {
@@ -53,11 +53,14 @@ function makeMvhdPayload(date, version = 0) {
   return payload;
 }
 
-function makeVideoFile(date, version = 0) {
+function makeVideoFile({ movieDate, mediaDate = null, version = 0 }) {
   const ftypPayload = new Uint8Array(8);
+  const trakPayload = mediaDate
+    ? makeBox('trak', makeBox('mdia', makeBox('mdhd', makeHeaderPayload(mediaDate, version))))
+    : new Uint8Array();
   const fileBytes = concatArrays(
     makeBox('ftyp', ftypPayload),
-    makeBox('moov', makeBox('mvhd', makeMvhdPayload(date, version)))
+    makeBox('moov', concatArrays(makeBox('mvhd', makeHeaderPayload(movieDate, version)), trakPayload))
   );
 
   return new File([fileBytes], 'GX010001.MP4', { type: 'video/mp4' });
@@ -67,13 +70,21 @@ describe('loadEmbeddedVideoStart', () => {
   it('reads a QuickTime creation time from the mvhd box', async () => {
     const expected = new Date('2025-11-29T18:42:49.000Z');
 
-    await expect(loadEmbeddedVideoStart(makeVideoFile(expected))).resolves.toEqual(expected);
+    await expect(loadEmbeddedVideoStart(makeVideoFile({ movieDate: expected }))).resolves.toEqual(expected);
   });
 
   it('supports version 1 mvhd creation times', async () => {
     const expected = new Date('2026-01-02T03:04:05.000Z');
 
-    await expect(loadEmbeddedVideoStart(makeVideoFile(expected, 1))).resolves.toEqual(expected);
+    await expect(loadEmbeddedVideoStart(makeVideoFile({ movieDate: expected, version: 1 }))).resolves.toEqual(expected);
+  });
+
+
+  it('prefers the mdhd media creation time when available', async () => {
+    const movieDate = new Date('2026-01-02T03:04:05.000Z');
+    const mediaDate = new Date('2026-01-02T03:05:15.000Z');
+
+    await expect(loadEmbeddedVideoStart(makeVideoFile({ movieDate, mediaDate }))).resolves.toEqual(mediaDate);
   });
 
   it('fails when embedded creation metadata is missing', async () => {

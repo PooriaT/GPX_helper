@@ -57,34 +57,62 @@ function creationTimeToDate(secondsSinceQuickTimeEpoch) {
   return new Date(QUICKTIME_EPOCH_OFFSET_MS + secondsSinceQuickTimeEpoch * 1000);
 }
 
-function parseMoovCreationTime(buffer, moovHeaderSize) {
-  const view = new DataView(buffer);
-  let offset = moovHeaderSize;
+function readHeaderCreationTime(view, offset, label) {
+  if (offset + 8 > view.byteLength) {
+    throw new Error(`${label} metadata is truncated.`);
+  }
 
-  while (offset < view.byteLength) {
-    const header = parseBoxHeader(view, offset, view.byteLength);
+  const creationTimeSeconds = readCreationTimeSeconds(view, offset);
+  if (!Number.isFinite(creationTimeSeconds) || creationTimeSeconds <= 0) {
+    throw new Error('Video metadata does not contain a valid creation time.');
+  }
+
+  return creationTimeToDate(creationTimeSeconds);
+}
+
+function findPreferredCreationTime(view, startOffset, endOffset) {
+  let offset = startOffset;
+  let movieCreationTime = null;
+
+  while (offset < endOffset) {
+    const header = parseBoxHeader(view, offset, endOffset);
     if (!header || header.size < header.headerSize) {
       break;
     }
 
+    const bodyOffset = offset + header.headerSize;
+    const boxEnd = Math.min(offset + header.size, endOffset);
+
+    if (header.type === 'mdhd') {
+      return readHeaderCreationTime(view, bodyOffset, 'Media header');
+    }
+
     if (header.type === 'mvhd') {
-      const bodyOffset = offset + header.headerSize;
-      if (bodyOffset + 8 > view.byteLength) {
-        throw new Error('Movie header metadata is truncated.');
-      }
+      movieCreationTime = readHeaderCreationTime(view, bodyOffset, 'Movie header');
+    }
 
-      const creationTimeSeconds = readCreationTimeSeconds(view, bodyOffset);
-      if (!Number.isFinite(creationTimeSeconds) || creationTimeSeconds <= 0) {
-        throw new Error('Video metadata does not contain a valid creation time.');
+    if (['moov', 'trak', 'mdia'].includes(header.type)) {
+      const nestedCreationTime = findPreferredCreationTime(view, bodyOffset, boxEnd);
+      if (nestedCreationTime) {
+        return nestedCreationTime;
       }
-
-      return creationTimeToDate(creationTimeSeconds);
     }
 
     offset += header.size;
   }
 
-  throw new Error('Video metadata does not contain a movie header.');
+  return movieCreationTime;
+}
+
+function parseMoovCreationTime(buffer, moovHeaderSize) {
+  const view = new DataView(buffer);
+  const creationTime = findPreferredCreationTime(view, moovHeaderSize, view.byteLength);
+
+  if (creationTime) {
+    return creationTime;
+  }
+
+  throw new Error('Video metadata does not contain a movie or media header.');
 }
 
 async function readFileSlice(file, offset, length) {
