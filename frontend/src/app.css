@@ -231,6 +231,7 @@ select:disabled {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 16px;
+  align-items: start;
 }
 
 .form-grid {
@@ -259,6 +260,38 @@ select:disabled {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
+}
+
+.clip-list {
+  display: grid;
+  gap: 10px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.clip-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px;
+  background: #f9fafb;
+  display: grid;
+  gap: 2px;
+}
+
+.clip-title,
+.clip-meta {
+  margin: 0;
+}
+
+.clip-title {
+  font-weight: 700;
+  color: #111827;
+}
+
+.clip-meta {
+  color: #4b5563;
+  font-size: 14px;
 }
 
 label {

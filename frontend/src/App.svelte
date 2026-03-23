@@ -17,6 +17,19 @@
     message: ''
   };
 
+  let trimByVideos = {
+    gpxFile: null,
+    videoFiles: [],
+    clips: [],
+    totalDurationSeconds: 0,
+    isPreparing: false,
+    status: 'idle',
+    error: '',
+    downloadUrl: '',
+    filename: '',
+    message: ''
+  };
+
   let mapAnimation = {
     gpxFile: null,
     durationSeconds: 45,
@@ -48,11 +61,12 @@
   let activeRequestLabel = '';
   let estimatedSeconds = null;
   const currentYear = new Date().getFullYear();
+  let trimByVideosSelectionId = 0;
 
-  $: isBusy = [trimByTime, mapAnimation].some((state) => state.status === 'loading');
+  $: isBusy = [trimByTime, trimByVideos, mapAnimation].some((state) => state.status === 'loading');
 
   onDestroy(() => {
-    [trimByTime, mapAnimation].forEach((state) => {
+    [trimByTime, trimByVideos, mapAnimation].forEach((state) => {
       if (state.downloadUrl) {
         URL.revokeObjectURL(state.downloadUrl);
       }
@@ -128,6 +142,24 @@
     return String(value).padStart(2, '0');
   }
 
+  function formatDurationLabel(totalSeconds) {
+    if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
+      return '0s';
+    }
+
+    const roundedSeconds = Math.round(totalSeconds);
+    const hours = Math.floor(roundedSeconds / 3600);
+    const minutes = Math.floor((roundedSeconds % 3600) / 60);
+    const seconds = roundedSeconds % 60;
+    const parts = [];
+
+    if (hours) parts.push(`${hours}h`);
+    if (minutes) parts.push(`${minutes}m`);
+    if (seconds || !parts.length) parts.push(`${seconds}s`);
+
+    return parts.join(' ');
+  }
+
   function toLocalDateTimeValue(date) {
     return [
       date.getFullYear(),
@@ -174,6 +206,19 @@
     return { durationSeconds, start, end };
   }
 
+  async function buildVideoClip(file, index) {
+    const { durationSeconds, start, end } = await deriveVideoTimes(file);
+    return {
+      id: `${file.name}-${file.lastModified}-${index}`,
+      name: file.name,
+      durationSeconds,
+      startIso: start.toISOString(),
+      endIso: end.toISOString(),
+      startLocal: toLocalDateTimeValue(start),
+      endLocal: toLocalDateTimeValue(end)
+    };
+  }
+
   async function parseGpxDuration(file) {
     if (!file) return null;
     const text = await readFileText(file);
@@ -191,6 +236,76 @@
     if (diffMs <= 0) return null;
 
     return Math.max(1, Math.round(diffMs / 1000));
+  }
+
+  async function parseGpxTimeRange(file) {
+    if (!file) return null;
+    const text = await readFileText(file);
+    if (typeof text !== 'string') return null;
+
+    const timestamps = [...text.matchAll(/<time>([^<]+)<\/time>/g)]
+      .map((match) => new Date(match[1]))
+      .filter((timestamp) => !Number.isNaN(timestamp.getTime()));
+
+    if (!timestamps.length) {
+      return null;
+    }
+
+    return {
+      start: timestamps[0],
+      end: timestamps[timestamps.length - 1]
+    };
+  }
+
+  function formatUtcLabel(value) {
+    return value.toISOString().replace('.000Z', 'Z');
+  }
+
+  function buildVideoRangeError(label, start, end, gpxRange) {
+    return `${label} spans ${formatUtcLabel(start)} to ${formatUtcLabel(end)}, but the GPX track only covers ${formatUtcLabel(gpxRange.start)} to ${formatUtcLabel(gpxRange.end)}.`;
+  }
+
+  async function ensureVideoFitsGpx(videoFile, gpxFile) {
+    if (!videoFile || !gpxFile) {
+      return;
+    }
+
+    const [videoRange, gpxRange] = await Promise.all([deriveVideoTimes(videoFile), parseGpxTimeRange(gpxFile)]);
+    if (!gpxRange) {
+      throw new Error('The GPX file does not contain readable timestamps.');
+    }
+
+    if (videoRange.start < gpxRange.start || videoRange.end > gpxRange.end) {
+      throw new Error(buildVideoRangeError(`Video "${videoFile.name}"`, videoRange.start, videoRange.end, gpxRange));
+    }
+  }
+
+  async function ensureVideosFitGpx(clips, gpxFile) {
+    if (!clips.length || !gpxFile) {
+      return;
+    }
+
+    const gpxRange = await parseGpxTimeRange(gpxFile);
+    if (!gpxRange) {
+      throw new Error('The GPX file does not contain readable timestamps.');
+    }
+
+    const mismatchedClip = clips.find((clip) => {
+      const start = new Date(clip.startIso);
+      const end = new Date(clip.endIso);
+      return start < gpxRange.start || end > gpxRange.end;
+    });
+
+    if (mismatchedClip) {
+      throw new Error(
+        buildVideoRangeError(
+          `Video "${mismatchedClip.name}"`,
+          new Date(mismatchedClip.startIso),
+          new Date(mismatchedClip.endIso),
+          gpxRange
+        )
+      );
+    }
   }
 
   async function requestFile(path, formData, fallbackFilename) {
@@ -255,6 +370,7 @@
       if (!trimByTime.gpxFile) {
         throw new Error('Upload a GPX track to trim.');
       }
+      await ensureVideoFitsGpx(trimByTime.videoFile, trimByTime.gpxFile);
       const startIso = toIsoString(trimByTime.startLocal, 'Start time');
       const endIso = toIsoString(trimByTime.endLocal, 'End time');
       if (new Date(startIso) >= new Date(endIso)) {
@@ -277,6 +393,63 @@
       };
     } catch (error) {
       trimByTime = { ...trimByTime, status: 'error', error: parseError(error) };
+    } finally {
+      finishRequest();
+    }
+  }
+
+  async function submitTrimByVideos() {
+    if (trimByVideos.downloadUrl) {
+      URL.revokeObjectURL(trimByVideos.downloadUrl);
+    }
+    startRequest('Trimming GPX by multiple videos...');
+    trimByVideos = {
+      ...trimByVideos,
+      isPreparing: false,
+      status: 'loading',
+      error: '',
+      message: '',
+      downloadUrl: '',
+      filename: ''
+    };
+
+    try {
+      if (!trimByVideos.gpxFile) {
+        throw new Error('Upload a GPX track to trim.');
+      }
+      if (!trimByVideos.clips.length) {
+        throw new Error('Add at least one video file.');
+      }
+      await ensureVideosFitGpx(trimByVideos.clips, trimByVideos.gpxFile);
+
+      const formData = new FormData();
+      formData.append('gpx_file', trimByVideos.gpxFile);
+      formData.append(
+        'clips_json',
+        JSON.stringify(
+          trimByVideos.clips.map((clip) => ({
+            start_time: clip.startIso,
+            end_time: clip.endIso,
+            duration_seconds: clip.durationSeconds
+          }))
+        )
+      );
+
+      const { blob, filename } = await requestFile(
+        '/api/v1/gpx/trim-by-videos',
+        formData,
+        'trimmed-gpx-files.zip'
+      );
+      const downloadUrl = URL.createObjectURL(blob);
+      trimByVideos = {
+        ...trimByVideos,
+        status: 'success',
+        downloadUrl,
+        filename,
+        message: `Prepared ${trimByVideos.clips.length} trimmed GPX files from ${trimByVideos.videoFiles.length} videos.`
+      };
+    } catch (error) {
+      trimByVideos = { ...trimByVideos, status: 'error', error: parseError(error) };
     } finally {
       finishRequest();
     }
@@ -462,6 +635,134 @@
         {/if}
         {#if trimByTime.downloadUrl}
           <a class="download" href={trimByTime.downloadUrl} download={trimByTime.filename}>Download {trimByTime.filename}</a>
+        {/if}
+      </article>
+
+      <article class="tool-card">
+        <header class="section-header">
+          <p class="section-label">Trim by video batch</p>
+          <h2>Split GPX by multiple videos</h2>
+          <p class="muted-text">
+            Upload one GPX track and multiple videos to generate numbered GPX clips in a ZIP file.
+          </p>
+        </header>
+
+        <form class="form-grid" on:submit|preventDefault={submitTrimByVideos}>
+          <label>
+            GPX file
+            <input
+              type="file"
+              accept=".gpx,application/gpx+xml"
+              on:change={(event) =>
+                (trimByVideos = {
+                  ...trimByVideos,
+                  gpxFile: event.target.files?.[0] ?? null,
+                  error: ''
+                })}
+              required
+            />
+          </label>
+          <label>
+            Video files
+            <input
+              type="file"
+              accept="video/*"
+              multiple
+              on:change={async (event) => {
+                const selectionId = ++trimByVideosSelectionId;
+                const files = Array.from(event.target.files ?? []);
+
+                trimByVideos = {
+                  ...trimByVideos,
+                  videoFiles: files,
+                  clips: [],
+                  totalDurationSeconds: 0,
+                  isPreparing: files.length > 0,
+                  error: '',
+                  message: '',
+                  status: 'idle'
+                };
+
+                if (!files.length) {
+                  return;
+                }
+
+                try {
+                  const clips = await Promise.all(files.map((file, index) => buildVideoClip(file, index)));
+                  if (selectionId !== trimByVideosSelectionId) {
+                    return;
+                  }
+
+                  const totalDurationSeconds = clips.reduce(
+                    (sum, clip) => sum + clip.durationSeconds,
+                    0
+                  );
+                  trimByVideos = {
+                    ...trimByVideos,
+                    videoFiles: files,
+                    clips,
+                    totalDurationSeconds,
+                    isPreparing: false,
+                    status: 'idle',
+                    error: ''
+                  };
+                } catch (error) {
+                  if (selectionId !== trimByVideosSelectionId) {
+                    return;
+                  }
+                  trimByVideos = {
+                    ...trimByVideos,
+                    videoFiles: files,
+                    clips: [],
+                    totalDurationSeconds: 0,
+                    isPreparing: false,
+                    status: 'idle',
+                    error: parseError(error, 'Unable to read video metadata.')
+                  };
+                }
+              }}
+              required
+            />
+          </label>
+          <div class="options-group">
+            <p class="options-title">Detected clips</p>
+            {#if trimByVideos.clips.length}
+              <p class="hint">
+                {trimByVideos.clips.length} clips detected with a combined duration of
+                {` ${formatDurationLabel(trimByVideos.totalDurationSeconds)}.`}
+              </p>
+              <div class="clip-list" aria-live="polite">
+                {#each trimByVideos.clips as clip, index (clip.id)}
+                  <div class="clip-item">
+                    <p class="clip-title">{index + 1}.gpx</p>
+                    <p class="clip-meta">{clip.name}</p>
+                    <p class="clip-meta">
+                      {clip.startLocal} to {clip.endLocal} · {formatDurationLabel(clip.durationSeconds)}
+                    </p>
+                  </div>
+                {/each}
+              </div>
+            {:else if trimByVideos.isPreparing}
+              <p class="hint">Reading video durations and timestamps from the selected files.</p>
+            {:else}
+              <p class="hint">Select videos to calculate their durations and timestamps in the browser.</p>
+            {/if}
+          </div>
+          <div class="form-actions">
+            <button type="submit" disabled={isBusy || trimByVideos.isPreparing}>Create ZIP</button>
+            <p class="hint">
+              Each output GPX is named by its selection order: `1.gpx`, `2.gpx`, and so on.
+            </p>
+          </div>
+        </form>
+        {#if trimByVideos.error}
+          <p class="error" role="alert">{trimByVideos.error}</p>
+        {/if}
+        {#if trimByVideos.message}
+          <p class="success" aria-live="polite">{trimByVideos.message}</p>
+        {/if}
+        {#if trimByVideos.downloadUrl}
+          <a class="download" href={trimByVideos.downloadUrl} download={trimByVideos.filename}>Download {trimByVideos.filename}</a>
         {/if}
       </article>
     </section>
