@@ -1,5 +1,6 @@
 <script>
   import { onDestroy } from 'svelte';
+  import { loadEmbeddedVideoStart } from './video-metadata';
 
   const DEFAULT_API_BASE = (import.meta.env.VITE_API_BASE ?? 'http://localhost:8000').replace(/\/$/, '');
 
@@ -199,9 +200,10 @@
   }
 
   async function deriveVideoTimes(file) {
-    const durationSeconds = await loadVideoDuration(file);
-    // File timestamp marks the clip start; compute the end using the duration.
-    const start = new Date(file.lastModified);
+    const [durationSeconds, start] = await Promise.all([
+      loadVideoDuration(file),
+      loadEmbeddedVideoStart(file)
+    ]);
     const end = new Date(start.getTime() + durationSeconds * 1000);
     return { durationSeconds, start, end };
   }
@@ -209,7 +211,7 @@
   async function buildVideoClip(file, index) {
     const { durationSeconds, start, end } = await deriveVideoTimes(file);
     return {
-      id: `${file.name}-${file.lastModified}-${index}`,
+      id: `${file.name}-${file.size}-${index}`,
       name: file.name,
       durationSeconds,
       startIso: start.toISOString(),
@@ -622,8 +624,8 @@
           <div class="form-actions">
             <button type="submit" disabled={isBusy}>Trim track</button>
             <p class="hint">
-              Add a video to auto-fill the start time from the file timestamp and the end time as start plus duration.
-              Times are converted to UTC before sending to the API.
+              Add a video to auto-fill the start time from embedded video metadata and the end time as
+              start plus duration. Times are converted to UTC before sending to the API.
             </p>
           </div>
         </form>
@@ -743,9 +745,9 @@
                 {/each}
               </div>
             {:else if trimByVideos.isPreparing}
-              <p class="hint">Reading video durations and timestamps from the selected files.</p>
+              <p class="hint">Reading video durations and embedded timestamps from the selected files.</p>
             {:else}
-              <p class="hint">Select videos to calculate their durations and timestamps in the browser.</p>
+              <p class="hint">Select videos to calculate their durations and embedded timestamps in the browser.</p>
             {/if}
           </div>
           <div class="form-actions">
