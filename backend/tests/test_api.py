@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
+from io import BytesIO
 import unittest
 from unittest import mock
 import xml.etree.ElementTree as ET
+import zipfile
 
 from fastapi.testclient import TestClient
 
@@ -48,6 +51,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(payload["version"], "v1")
         self.assertIn("POST /api/v1/gpx/trim-by-time", payload["endpoints"])
         self.assertIn("POST /api/v1/gpx/trim-by-video", payload["endpoints"])
+        self.assertIn("POST /api/v1/gpx/trim-by-videos", payload["endpoints"])
         self.assertIn("POST /api/v1/gpx/map-animate/estimate", payload["endpoints"])
         self.assertIn("POST /api/v1/gpx/map-animate", payload["endpoints"])
 
@@ -124,6 +128,62 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("outside GPX time range", response.json()["detail"])
+
+    def test_trim_by_videos_success(self) -> None:
+        files = {
+            "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
+        }
+        data = {
+            "clips_json": json.dumps(
+                [
+                    {
+                        "start_time": "2024-01-01T00:00:00Z",
+                        "end_time": "2024-01-01T00:00:10Z",
+                        "duration_seconds": 10,
+                    },
+                    {
+                        "start_time": "2024-01-01T00:00:10Z",
+                        "end_time": "2024-01-01T00:00:20Z",
+                        "duration_seconds": 10,
+                    },
+                ]
+            )
+        }
+
+        response = self.client.post("/api/v1/gpx/trim-by-videos", files=files, data=data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["content-type"], "application/zip")
+        self.assertIn(
+            "attachment; filename=trimmed-gpx-files.zip",
+            response.headers["content-disposition"],
+        )
+
+        with zipfile.ZipFile(BytesIO(response.content)) as archive:
+            self.assertEqual(archive.namelist(), ["1.gpx", "2.gpx"])
+            self.assertEqual(_count_trkpts(archive.read("1.gpx")), 2)
+            self.assertEqual(_count_trkpts(archive.read("2.gpx")), 2)
+
+    def test_trim_by_videos_out_of_range(self) -> None:
+        files = {
+            "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
+        }
+        data = {
+            "clips_json": json.dumps(
+                [
+                    {
+                        "start_time": "2024-01-01T00:00:10Z",
+                        "end_time": "2024-01-01T00:00:30Z",
+                        "duration_seconds": 20,
+                    }
+                ]
+            )
+        }
+
+        response = self.client.post("/api/v1/gpx/trim-by-videos", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "Clip 1 timestamps fall outside GPX time range")
 
     def test_map_animation_success(self) -> None:
         files = {

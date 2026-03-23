@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from io import BytesIO
+import json
 import os
 import shutil
 import tempfile
 from typing import BinaryIO
+import zipfile
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -91,6 +93,47 @@ def _stream_payload(payload: bytes, filename: str, media_type: str) -> Streaming
     return StreamingResponse(BytesIO(payload), media_type=media_type, headers=headers)
 
 
+def _parse_video_clips_payload(clips_json: str) -> list[dict[str, datetime | float]]:
+    try:
+        payload = json.loads(clips_json)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="clips_json must be valid JSON") from exc
+
+    if not isinstance(payload, list) or not payload:
+        raise HTTPException(status_code=400, detail="clips_json must be a non-empty array")
+
+    clips: list[dict[str, datetime | float]] = []
+    for index, clip in enumerate(payload, start=1):
+        if not isinstance(clip, dict):
+            raise HTTPException(status_code=400, detail=f"Clip {index} must be an object")
+
+        start_time = clip.get("start_time")
+        end_time = clip.get("end_time")
+        duration_seconds = clip.get("duration_seconds")
+
+        if not isinstance(start_time, str) or not isinstance(end_time, str):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Clip {index} must include start_time and end_time strings",
+            )
+        if not isinstance(duration_seconds, int | float) or duration_seconds <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Clip {index} duration_seconds must be positive",
+            )
+
+        start_dt, end_dt = _parse_request_times(start_time, end_time, enforce_order=True)
+        clips.append(
+            {
+                "start_dt": start_dt,
+                "end_dt": end_dt,
+                "duration_seconds": float(duration_seconds),
+            }
+        )
+
+    return clips
+
+
 @app.get("/api/v1/health")
 def health_check() -> JSONResponse:
     return JSONResponse({"status": "ok", "service": "gpx-helper"})
@@ -104,6 +147,7 @@ def capabilities() -> JSONResponse:
             "endpoints": [
                 "POST /api/v1/gpx/trim-by-time",
                 "POST /api/v1/gpx/trim-by-video",
+                "POST /api/v1/gpx/trim-by-videos",
                 "POST /api/v1/gpx/map-animate/estimate",
                 "POST /api/v1/gpx/map-animate",
             ],
@@ -166,6 +210,44 @@ def trim_by_video(
 
         gpx_output.seek(0)
         return _stream_gpx(gpx_output.read(), "trimmed.gpx")
+
+
+@app.post("/api/v1/gpx/trim-by-videos")
+def trim_by_videos(
+    gpx_file: UploadFile | str | None = File(None),
+    clips_json: str = Form(...),
+) -> StreamingResponse:
+    gpx_file = _validate_upload(gpx_file, "gpx_file")
+    clips = _parse_video_clips_payload(clips_json)
+
+    with tempfile.NamedTemporaryFile(suffix=".gpx") as gpx_input:
+        _write_upload_to_file(gpx_file, gpx_input, "GPX")
+        try:
+            gpx_start, gpx_end = get_gpx_time_range(gpx_input.name)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        zip_buffer = BytesIO()
+        with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for index, clip in enumerate(clips, start=1):
+                start_dt = clip["start_dt"]
+                end_dt = clip["end_dt"]
+                if start_dt < gpx_start or end_dt > gpx_end:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Clip {index} timestamps fall outside GPX time range",
+                    )
+
+                with tempfile.NamedTemporaryFile(suffix=".gpx") as gpx_output:
+                    try:
+                        crop_gpx_by_time(gpx_input.name, start_dt, end_dt, gpx_output.name)
+                    except Exception as exc:
+                        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+                    gpx_output.seek(0)
+                    archive.writestr(f"{index}.gpx", gpx_output.read())
+
+        return _stream_payload(zip_buffer.getvalue(), "trimmed-gpx-files.zip", "application/zip")
 
 
 @app.post("/api/v1/gpx/map-animate/estimate")
