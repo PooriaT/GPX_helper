@@ -57,22 +57,32 @@ function creationTimeToDate(secondsSinceQuickTimeEpoch) {
   return new Date(QUICKTIME_EPOCH_OFFSET_MS + secondsSinceQuickTimeEpoch * 1000);
 }
 
-function readHeaderCreationTime(view, offset, label) {
+function readHeaderCreationTime(view, offset, label, { allowUnset = false } = {}) {
   if (offset + 8 > view.byteLength) {
     throw new Error(`${label} metadata is truncated.`);
   }
 
   const creationTimeSeconds = readCreationTimeSeconds(view, offset);
   if (!Number.isFinite(creationTimeSeconds) || creationTimeSeconds <= 0) {
+    if (allowUnset) {
+      return null;
+    }
     throw new Error('Video metadata does not contain a valid creation time.');
   }
 
   return creationTimeToDate(creationTimeSeconds);
 }
 
-function findPreferredCreationTime(view, startOffset, endOffset) {
+function readHandlerType(view, offset) {
+  if (offset + 12 > view.byteLength) {
+    throw new Error('Track handler metadata is truncated.');
+  }
+
+  return decodeBoxType(view, offset + 8);
+}
+
+function findBox(view, startOffset, endOffset, targetType) {
   let offset = startOffset;
-  let movieCreationTime = null;
 
   while (offset < endOffset) {
     const header = parseBoxHeader(view, offset, endOffset);
@@ -83,19 +93,70 @@ function findPreferredCreationTime(view, startOffset, endOffset) {
     const bodyOffset = offset + header.headerSize;
     const boxEnd = Math.min(offset + header.size, endOffset);
 
-    if (header.type === 'mdhd') {
-      return readHeaderCreationTime(view, bodyOffset, 'Media header');
+    if (header.type === targetType) {
+      return { header, bodyOffset, boxEnd };
     }
+
+    offset += header.size;
+  }
+
+  return null;
+}
+
+function findVideoTrackCreationTime(view, startOffset, endOffset) {
+  let offset = startOffset;
+
+  while (offset < endOffset) {
+    const header = parseBoxHeader(view, offset, endOffset);
+    if (!header || header.size < header.headerSize) {
+      break;
+    }
+
+    const bodyOffset = offset + header.headerSize;
+    const boxEnd = Math.min(offset + header.size, endOffset);
+
+    if (header.type === 'trak') {
+      const mdiaBox = findBox(view, bodyOffset, boxEnd, 'mdia');
+      if (mdiaBox) {
+        const hdlrBox = findBox(view, mdiaBox.bodyOffset, mdiaBox.boxEnd, 'hdlr');
+        const mdhdBox = findBox(view, mdiaBox.bodyOffset, mdiaBox.boxEnd, 'mdhd');
+
+        if (hdlrBox && mdhdBox && readHandlerType(view, hdlrBox.bodyOffset) === 'vide') {
+          const creationTime = readHeaderCreationTime(view, mdhdBox.bodyOffset, 'Media header', {
+            allowUnset: true
+          });
+          if (creationTime) {
+            return creationTime;
+          }
+        }
+      }
+    }
+
+    offset += header.size;
+  }
+
+  return null;
+}
+
+function findPreferredCreationTime(view, startOffset, endOffset) {
+  const videoTrackCreationTime = findVideoTrackCreationTime(view, startOffset, endOffset);
+  if (videoTrackCreationTime) {
+    return videoTrackCreationTime;
+  }
+
+  let offset = startOffset;
+  let movieCreationTime = null;
+
+  while (offset < endOffset) {
+    const header = parseBoxHeader(view, offset, endOffset);
+    if (!header || header.size < header.headerSize) {
+      break;
+    }
+
+    const bodyOffset = offset + header.headerSize;
 
     if (header.type === 'mvhd') {
       movieCreationTime = readHeaderCreationTime(view, bodyOffset, 'Movie header');
-    }
-
-    if (['moov', 'trak', 'mdia'].includes(header.type)) {
-      const nestedCreationTime = findPreferredCreationTime(view, bodyOffset, boxEnd);
-      if (nestedCreationTime) {
-        return nestedCreationTime;
-      }
     }
 
     offset += header.size;
