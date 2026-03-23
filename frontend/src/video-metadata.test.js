@@ -53,14 +53,39 @@ function makeHeaderPayload(date, version = 0) {
   return payload;
 }
 
-function makeVideoFile({ movieDate, mediaDate = null, version = 0 }) {
+function makeHdlrPayload(handlerType) {
+  const payload = new Uint8Array(24);
+  payload.set(encodeType(handlerType), 8);
+  return payload;
+}
+
+function makeShortHdlrPayload(length = 8) {
+  return new Uint8Array(length);
+}
+
+function makeInvalidBox(prefix = 'vide') {
+  return encodeType(prefix.padEnd(8, '\0').slice(0, 8));
+}
+
+function makeTrack({ handlerType = 'vide', mediaDate = null, version = 0 } = {}) {
+  const mdiaChildren = [makeBox('hdlr', makeHdlrPayload(handlerType))];
+
+  if (mediaDate !== null) {
+    mdiaChildren.unshift(makeBox('mdhd', makeHeaderPayload(mediaDate, version)));
+  }
+
+  return makeBox('trak', makeBox('mdia', concatArrays(...mdiaChildren)));
+}
+
+function makeUnsetMdhd(version = 0) {
+  return makeBox('mdhd', makeHeaderPayload(new Date(QUICKTIME_EPOCH_OFFSET_MS), version));
+}
+
+function makeVideoFile({ movieDate, tracks = [], version = 0 }) {
   const ftypPayload = new Uint8Array(8);
-  const trakPayload = mediaDate
-    ? makeBox('trak', makeBox('mdia', makeBox('mdhd', makeHeaderPayload(mediaDate, version))))
-    : new Uint8Array();
   const fileBytes = concatArrays(
     makeBox('ftyp', ftypPayload),
-    makeBox('moov', concatArrays(makeBox('mvhd', makeHeaderPayload(movieDate, version)), trakPayload))
+    makeBox('moov', concatArrays(makeBox('mvhd', makeHeaderPayload(movieDate, version)), ...tracks))
   );
 
   return new File([fileBytes], 'GX010001.MP4', { type: 'video/mp4' });
@@ -79,12 +104,60 @@ describe('loadEmbeddedVideoStart', () => {
     await expect(loadEmbeddedVideoStart(makeVideoFile({ movieDate: expected, version: 1 }))).resolves.toEqual(expected);
   });
 
-
-  it('prefers the mdhd media creation time when available', async () => {
+  it('prefers the video-track mdhd media creation time when available', async () => {
     const movieDate = new Date('2026-01-02T03:04:05.000Z');
     const mediaDate = new Date('2026-01-02T03:05:15.000Z');
 
-    await expect(loadEmbeddedVideoStart(makeVideoFile({ movieDate, mediaDate }))).resolves.toEqual(mediaDate);
+    const file = makeVideoFile({
+      movieDate,
+      tracks: [makeTrack({ mediaDate })]
+    });
+
+    await expect(loadEmbeddedVideoStart(file)).resolves.toEqual(mediaDate);
+  });
+
+  it('falls back to mvhd when the video-track mdhd creation time is unset', async () => {
+    const movieDate = new Date('2026-01-02T03:04:05.000Z');
+    const file = makeVideoFile({
+      movieDate,
+      tracks: [makeBox('trak', makeBox('mdia', concatArrays(makeUnsetMdhd(), makeBox('hdlr', makeHdlrPayload('vide')))))]
+    });
+
+    await expect(loadEmbeddedVideoStart(file)).resolves.toEqual(movieDate);
+  });
+
+  it('ignores non-video mdhd boxes when choosing the preferred creation time', async () => {
+    const movieDate = new Date('2026-01-02T03:04:05.000Z');
+    const audioDate = new Date('2026-01-02T03:03:05.000Z');
+    const videoDate = new Date('2026-01-02T03:05:15.000Z');
+    const file = makeVideoFile({
+      movieDate,
+      tracks: [makeTrack({ handlerType: 'soun', mediaDate: audioDate }), makeTrack({ mediaDate: videoDate })]
+    });
+
+    await expect(loadEmbeddedVideoStart(file)).resolves.toEqual(videoDate);
+  });
+
+  it('falls back to mvhd when a truncated hdlr is followed by another box that starts with vide', async () => {
+    const movieDate = new Date('2026-01-02T03:04:05.000Z');
+    const mediaDate = new Date('2026-01-02T03:05:15.000Z');
+    const truncatedTrack = makeBox(
+      'trak',
+      makeBox(
+        'mdia',
+        concatArrays(
+          makeBox('mdhd', makeHeaderPayload(mediaDate)),
+          makeBox('hdlr', makeShortHdlrPayload()),
+          makeInvalidBox('videfree')
+        )
+      )
+    );
+    const file = makeVideoFile({
+      movieDate,
+      tracks: [truncatedTrack]
+    });
+
+    await expect(loadEmbeddedVideoStart(file)).resolves.toEqual(movieDate);
   });
 
   it('fails when embedded creation metadata is missing', async () => {
