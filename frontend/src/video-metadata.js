@@ -73,8 +73,8 @@ function readHeaderCreationTime(view, offset, label, { allowUnset = false } = {}
   return creationTimeToDate(creationTimeSeconds);
 }
 
-function readHandlerType(view, offset) {
-  if (offset + 12 > view.byteLength) {
+function readHandlerType(view, offset, boxEnd) {
+  if (offset + 12 > boxEnd || boxEnd > view.byteLength) {
     throw new Error('Track handler metadata is truncated.');
   }
 
@@ -121,12 +121,21 @@ function findVideoTrackCreationTime(view, startOffset, endOffset) {
         const hdlrBox = findBox(view, mdiaBox.bodyOffset, mdiaBox.boxEnd, 'hdlr');
         const mdhdBox = findBox(view, mdiaBox.bodyOffset, mdiaBox.boxEnd, 'mdhd');
 
-        if (hdlrBox && mdhdBox && readHandlerType(view, hdlrBox.bodyOffset) === 'vide') {
-          const creationTime = readHeaderCreationTime(view, mdhdBox.bodyOffset, 'Media header', {
-            allowUnset: true
-          });
-          if (creationTime) {
-            return creationTime;
+        if (hdlrBox && mdhdBox) {
+          let handlerType = null;
+          try {
+            handlerType = readHandlerType(view, hdlrBox.bodyOffset, hdlrBox.boxEnd);
+          } catch (error) {
+            handlerType = null;
+          }
+
+          if (handlerType === 'vide') {
+            const creationTime = readHeaderCreationTime(view, mdhdBox.bodyOffset, 'Media header', {
+              allowUnset: true
+            });
+            if (creationTime) {
+              return creationTime;
+            }
           }
         }
       }

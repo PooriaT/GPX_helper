@@ -59,6 +59,14 @@ function makeHdlrPayload(handlerType) {
   return payload;
 }
 
+function makeShortHdlrPayload(length = 8) {
+  return new Uint8Array(length);
+}
+
+function makeInvalidBox(prefix = 'vide') {
+  return encodeType(prefix.padEnd(8, '\0').slice(0, 8));
+}
+
 function makeTrack({ handlerType = 'vide', mediaDate = null, version = 0 } = {}) {
   const mdiaChildren = [makeBox('hdlr', makeHdlrPayload(handlerType))];
 
@@ -128,6 +136,28 @@ describe('loadEmbeddedVideoStart', () => {
     });
 
     await expect(loadEmbeddedVideoStart(file)).resolves.toEqual(videoDate);
+  });
+
+  it('falls back to mvhd when a truncated hdlr is followed by another box that starts with vide', async () => {
+    const movieDate = new Date('2026-01-02T03:04:05.000Z');
+    const mediaDate = new Date('2026-01-02T03:05:15.000Z');
+    const truncatedTrack = makeBox(
+      'trak',
+      makeBox(
+        'mdia',
+        concatArrays(
+          makeBox('mdhd', makeHeaderPayload(mediaDate)),
+          makeBox('hdlr', makeShortHdlrPayload()),
+          makeInvalidBox('videfree')
+        )
+      )
+    );
+    const file = makeVideoFile({
+      movieDate,
+      tracks: [truncatedTrack]
+    });
+
+    await expect(loadEmbeddedVideoStart(file)).resolves.toEqual(movieDate);
   });
 
   it('fails when embedded creation metadata is missing', async () => {
