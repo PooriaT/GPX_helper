@@ -1,0 +1,44 @@
+GPX Helper
+One-page repo summary based on README and source files
+
+WHAT IT IS
+A local web app and Python toolkit for trimming GPX tracks to match video
+timestamps and for rendering GPX routes into MP4 map animations. The repo
+combines a Svelte frontend with a FastAPI backend.
+
+WHO IT'S FOR
+- GoPro and other action-camera users who need to sync footage with GPS
+  tracks for mapping, overlays, or route exports.
+
+WHAT IT DOES
+- Trim a GPX file by a manual start and end time.
+- Auto-fill trim times from embedded QuickTime video metadata in the
+  browser.
+- Check that requested trim windows fit inside the GPX time range.
+- Split one GPX track into multiple clip-specific GPX files and download a
+  ZIP.
+- Estimate map-animation render time before starting the export.
+- Render MP4 route animations with tile-style and line/marker controls.
+- Expose health and capability endpoints plus file-download API responses.
+
+HOW IT WORKS
+- Frontend: Svelte + Vite UI (`frontend/src/App.svelte`) handles uploads,
+  reads GPX timestamps, extracts MP4/MOV creation time from box metadata
+  (`frontend/src/video-metadata.js`), and posts multipart forms.
+- Backend: FastAPI (`backend/src/gpx_helper/api/main.py`) validates
+  inputs, writes uploads to temp files, and streams GPX, ZIP, JSON ETA, or
+  MP4 responses.
+- GPX processing: `gpx_splitter.py` parses GPX XML, finds the closest
+  timed track points, crops the track segment, and in CLI mode can read
+  video timing via `exiftool`.
+- Map rendering: `map_animator.py` loads GPX points, converts them to Web
+  Mercator, fetches map tiles, estimates render cost, and encodes MP4
+  output.
+- Persistent database, auth, and deployment setup: Not found in repo.
+
+HOW TO RUN
+- Backend: `cd backend && poetry install && poetry run uvicorn
+  gpx_helper.api.main:app --reload`
+- Frontend: `cd frontend && npm install && npm run dev`
+- Open the Vite URL (default `http://localhost:4173`). The UI targets
+  `http://localhost:8000` unless `VITE_API_BASE` is set.
