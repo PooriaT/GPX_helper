@@ -194,6 +194,8 @@ class ApiTests(unittest.TestCase):
             "fps": "24",
             "resolution": "640x480",
             "tile_type": "cyclosm",
+            "full_trail_opacity": "0.35",
+            "line_opacity": "0.25",
         }
         fake_video = b"mp4-bytes"
         captured = {}
@@ -227,6 +229,8 @@ class ApiTests(unittest.TestCase):
         )
         self.assertEqual(captured.get("tile_subdomains"), ("a", "b", "c"))
         self.assertEqual(captured.get("fps"), 24.0)
+        self.assertEqual(captured.get("full_line_opacity"), 0.35)
+        self.assertEqual(captured.get("animated_line_opacity"), 0.25)
 
     def test_map_animation_invalid_resolution(self) -> None:
         files = {

@@ -1,5 +1,6 @@
 <script>
   import { onDestroy } from 'svelte';
+  import { parseGpxDurationFromText, parseGpxTimeRangeFromText } from './gpx-metadata';
   import { loadEmbeddedVideoStart } from './video-metadata';
 
   const DEFAULT_API_BASE = (import.meta.env.VITE_API_BASE ?? 'http://localhost:8000').replace(/\/$/, '');
@@ -224,39 +225,13 @@
   async function parseGpxDuration(file) {
     if (!file) return null;
     const text = await readFileText(file);
-    if (typeof text !== 'string') return null;
-
-    const timeMatches = [...text.matchAll(/<time>([^<]+)<\/time>/g)];
-    const timestamps = timeMatches
-      .map((match) => new Date(match[1]))
-      .filter((timestamp) => !Number.isNaN(timestamp.getTime()));
-
-    if (timestamps.length < 2) return null;
-    const first = timestamps[0];
-    const last = timestamps[timestamps.length - 1];
-    const diffMs = last.getTime() - first.getTime();
-    if (diffMs <= 0) return null;
-
-    return Math.max(1, Math.round(diffMs / 1000));
+    return parseGpxDurationFromText(text);
   }
 
   async function parseGpxTimeRange(file) {
     if (!file) return null;
     const text = await readFileText(file);
-    if (typeof text !== 'string') return null;
-
-    const timestamps = [...text.matchAll(/<time>([^<]+)<\/time>/g)]
-      .map((match) => new Date(match[1]))
-      .filter((timestamp) => !Number.isNaN(timestamp.getTime()));
-
-    if (!timestamps.length) {
-      return null;
-    }
-
-    return {
-      start: timestamps[0],
-      end: timestamps[timestamps.length - 1]
-    };
+    return parseGpxTimeRangeFromText(text);
   }
 
   function formatUtcLabel(value) {
@@ -874,7 +849,15 @@
           <div class="options-grid">
             <label>
               Marker color
-              <input type="color" bind:value={mapAnimation.markerColor} />
+              <div class="color-control">
+                <input
+                  class="color-picker"
+                  type="color"
+                  bind:value={mapAnimation.markerColor}
+                  style={`--picker-color: ${mapAnimation.markerColor};`}
+                />
+                <span class="color-value">{mapAnimation.markerColor}</span>
+              </div>
             </label>
             <label>
               Marker size (px)
@@ -888,11 +871,27 @@
             </label>
             <label>
               Animated trail color
-              <input type="color" bind:value={mapAnimation.trailColor} />
+              <div class="color-control">
+                <input
+                  class="color-picker"
+                  type="color"
+                  bind:value={mapAnimation.trailColor}
+                  style={`--picker-color: ${mapAnimation.trailColor};`}
+                />
+                <span class="color-value">{mapAnimation.trailColor}</span>
+              </div>
             </label>
             <label>
               Full trail color
-              <input type="color" bind:value={mapAnimation.fullTrailColor} />
+              <div class="color-control">
+                <input
+                  class="color-picker"
+                  type="color"
+                  bind:value={mapAnimation.fullTrailColor}
+                  style={`--picker-color: ${mapAnimation.fullTrailColor};`}
+                />
+                <span class="color-value">{mapAnimation.fullTrailColor}</span>
+              </div>
             </label>
             <label>
               Full trail opacity
