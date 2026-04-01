@@ -3,8 +3,14 @@ from __future__ import annotations
 import unittest
 from unittest import mock
 
+from PIL import Image
+
 from gpx_helper import map_animator
-from gpx_helper.map_animator import prepare_animation_data, prepare_animation_series
+from gpx_helper.map_animator import (
+    _composite_line_overlay,
+    prepare_animation_data,
+    prepare_animation_series,
+)
 
 
 class MapAnimatorTests(unittest.TestCase):
@@ -91,6 +97,32 @@ class MapAnimatorTests(unittest.TestCase):
             )
 
         self.assertLess(fast_estimate, slow_estimate)
+
+    def test_composite_line_overlay_flattens_opacity_into_base_image(self) -> None:
+        base_image = Image.new("RGBA", (10, 10), (255, 255, 255, 255))
+
+        composited = _composite_line_overlay(
+            base_image,
+            [(0, 5), (9, 5)],
+            color="#ff0000",
+            opacity=0.5,
+            line_width=1,
+        )
+
+        self.assertEqual(composited.getpixel((5, 5)), (255, 128, 128, 255))
+
+    def test_composite_line_overlay_skips_fully_transparent_lines(self) -> None:
+        base_image = Image.new("RGBA", (10, 10), (255, 255, 255, 255))
+
+        composited = _composite_line_overlay(
+            base_image,
+            [(0, 5), (9, 5)],
+            color="#ff0000",
+            opacity=0.0,
+            line_width=1,
+        )
+
+        self.assertEqual(composited.getpixel((5, 5)), (255, 255, 255, 255))
 
 
 if __name__ == "__main__":

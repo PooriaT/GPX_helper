@@ -552,6 +552,27 @@ def _build_marker_image(
     return marker_img, center
 
 
+def _composite_line_overlay(
+    base_image: Image.Image,
+    points: list[tuple[float, float]],
+    *,
+    color: str,
+    opacity: float,
+    line_width: float,
+) -> Image.Image:
+    if opacity <= 0 or len(points) < 2:
+        return base_image.copy()
+
+    overlay = Image.new("RGBA", base_image.size, (0, 0, 0, 0))
+    overlay_draw = ImageDraw.Draw(overlay, "RGBA")
+    overlay_draw.line(
+        points,
+        fill=_hex_to_rgba(color, opacity),
+        width=max(1, int(round(line_width))),
+    )
+    return Image.alpha_composite(base_image, overlay)
+
+
 def _open_ffmpeg_writer(
     output_path: str,
     *,
@@ -634,11 +655,12 @@ def create_animation(
         xs_arr, ys_arr, basemap_extent, width_px, height_px
     )
 
-    static_draw = ImageDraw.Draw(base_image, "RGBA")
-    static_draw.line(
+    base_image = _composite_line_overlay(
+        base_image,
         point_pixels,
-        fill=_hex_to_rgba(full_line_color, full_line_opacity),
-        width=max(1, int(round(line_width))),
+        color=full_line_color,
+        opacity=full_line_opacity,
+        line_width=line_width,
     )
 
     trail_image = Image.new("RGBA", base_image.size, (0, 0, 0, 0))
