@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen } from '@testing-library/svelte';
 import App from './App.svelte';
 
 describe('App', () => {
@@ -31,5 +31,16 @@ describe('App', () => {
 
     expect(screen.getAllByLabelText(/^GPX file$/i)).toHaveLength(3);
     expect(screen.getByLabelText(/Optional video file/i)).toBeInTheDocument();
+  });
+
+  it('shows the selected marker color in the route animation style controls', async () => {
+    render(App);
+
+    const markerColorInput = screen.getByLabelText(/Marker color/i);
+
+    await fireEvent.input(markerColorInput, { target: { value: '#ff0000' } });
+
+    expect(screen.getByText('#ff0000')).toBeInTheDocument();
+    expect(markerColorInput).toHaveValue('#ff0000');
   });
 });

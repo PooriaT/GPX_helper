@@ -849,7 +849,15 @@
           <div class="options-grid">
             <label>
               Marker color
-              <input type="color" bind:value={mapAnimation.markerColor} />
+              <div class="color-control">
+                <input
+                  class="color-picker"
+                  type="color"
+                  bind:value={mapAnimation.markerColor}
+                  style={`--picker-color: ${mapAnimation.markerColor};`}
+                />
+                <span class="color-value">{mapAnimation.markerColor}</span>
+              </div>
             </label>
             <label>
               Marker size (px)
@@ -863,11 +871,27 @@
             </label>
             <label>
               Animated trail color
-              <input type="color" bind:value={mapAnimation.trailColor} />
+              <div class="color-control">
+                <input
+                  class="color-picker"
+                  type="color"
+                  bind:value={mapAnimation.trailColor}
+                  style={`--picker-color: ${mapAnimation.trailColor};`}
+                />
+                <span class="color-value">{mapAnimation.trailColor}</span>
+              </div>
             </label>
             <label>
               Full trail color
-              <input type="color" bind:value={mapAnimation.fullTrailColor} />
+              <div class="color-control">
+                <input
+                  class="color-picker"
+                  type="color"
+                  bind:value={mapAnimation.fullTrailColor}
+                  style={`--picker-color: ${mapAnimation.fullTrailColor};`}
+                />
+                <span class="color-value">{mapAnimation.fullTrailColor}</span>
+              </div>
             </label>
             <label>
               Full trail opacity

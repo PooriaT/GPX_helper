@@ -320,6 +320,51 @@ select:focus {
   background: #fff;
 }
 
+.color-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.color-picker {
+  --picker-color: #111827;
+  padding: 0;
+  min-height: 42px;
+  border-radius: 10px;
+  border: 2px solid #ffffff;
+  background: transparent;
+  cursor: pointer;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px #d1d5db;
+}
+
+.color-picker::-webkit-color-swatch-wrapper {
+  padding: 0;
+  background: transparent;
+}
+
+.color-picker::-webkit-color-swatch {
+  border: 0;
+  border-radius: 0;
+  background: var(--picker-color);
+}
+
+.color-picker::-moz-color-swatch {
+  border: 0;
+  border-radius: 0;
+  background: var(--picker-color);
+}
+
+.color-value {
+  min-width: 74px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #4b5563;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
 .form-actions {
   display: flex;
   flex-wrap: wrap;
