@@ -539,8 +539,6 @@
     </div>
     <nav class="topnav" aria-label="Sections">
       <a href="#trim-tools">Services</a>
-      <a href="#animation-tools">Work</a>
-      <a href="#api-target">Setup</a>
     </nav>
     <a class="topbar-cta" href="#trim-tools">Let&apos;s start</a>
   </header>
@@ -577,10 +575,6 @@
     </div>
 
     <aside class="hero-aside">
-      <article class="hero-spotlight">
-        <p class="note-kicker">What stays the same</p>
-        <p class="note-copy">The UI changed. Every existing submit path, file input, and result download remains wired exactly as before.</p>
-      </article>
       <article class="hero-note hero-note-light">
         <p class="note-kicker">Facts & numbers</p>
         <div class="metric-grid">
@@ -603,31 +597,6 @@
         <p class="note-copy">Rides, runs, travel footage, and any capture flow where GPX and camera metadata need to line up cleanly.</p>
       </article>
     </aside>
-  </section>
-
-  <section class="intro-grid">
-    <article class="story-panel">
-      <p class="section-label">Where precision meets clarity</p>
-      <h2>Upload once, refine only what matters, and export a result that is ready to use.</h2>
-      <p class="muted-text">
-        The page now mirrors the reference more closely: brighter layout, tighter navigation, clearer
-        call-to-action hierarchy, and cleaner content bands around the same tooling.
-      </p>
-    </article>
-
-    <article class="api-card" id="api-target">
-      <p class="section-label">API target</p>
-      <label for="api-base">Backend base URL</label>
-      <div class="input-row">
-        <input id="api-base" type="url" bind:value={apiBase} placeholder="http://localhost:8000" />
-        <button type="button" class="ghost" on:click={() => (apiBase = DEFAULT_API_BASE)} disabled={isBusy}>
-          Reset
-        </button>
-      </div>
-      <div class="api-status">
-        <p class="hint">Requests are sent to this API base. Change it only if the backend runs elsewhere.</p>
-      </div>
-    </article>
   </section>
 
   {#if isBusy}
