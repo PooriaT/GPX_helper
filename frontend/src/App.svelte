@@ -532,12 +532,103 @@
 </svelte:head>
 
 <div class="page-shell">
-  <header class="hero">
-    <h1>GPX Helper</h1>
-    <p class="lede">
-      Trim GPX tracks, sync them to video timestamps, and render map animations directly in your browser.
-    </p>
+  <header class="topbar">
+    <div class="brand-block">
+      <p class="brand-mark">GPX Helper</p>
+      <p class="brand-caption">Route cleanup, video sync, and map output in one browser workspace.</p>
+    </div>
+    <nav class="topnav" aria-label="Sections">
+      <a href="#trim-tools">Services</a>
+      <a href="#animation-tools">Work</a>
+      <a href="#api-target">Setup</a>
+    </nav>
+    <a class="topbar-cta" href="#trim-tools">Let&apos;s start</a>
   </header>
+
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="section-label">Video-synced GPX toolkit</p>
+      <h1>Building cleaner route exports with thoughtful browser tooling.</h1>
+      <p class="lede">
+        Trim GPX files by time, split them from multiple videos, and render a polished route animation
+        from the same page without changing your existing backend workflow.
+      </p>
+      <div class="hero-actions">
+        <a class="hero-button" href="#trim-tools">Get started</a>
+        <a class="hero-button ghost-button" href="#animation-tools">View animation tools</a>
+      </div>
+      <div class="hero-proof">
+        <div class="avatar-stack" aria-hidden="true">
+          <span>GP</span>
+          <span>VX</span>
+          <span>TR</span>
+          <span>MP</span>
+        </div>
+        <div class="proof-copy">
+          <strong>Trusted workflow</strong>
+          <span>Built around timestamp-safe trims, clip batching, and export-ready map renders.</span>
+        </div>
+      </div>
+      <div class="hero-tags" aria-label="Highlights">
+        <span>Trim by timestamps</span>
+        <span>Split by multiple videos</span>
+        <span>Render route MP4</span>
+      </div>
+    </div>
+
+    <aside class="hero-aside">
+      <article class="hero-spotlight">
+        <p class="note-kicker">What stays the same</p>
+        <p class="note-copy">The UI changed. Every existing submit path, file input, and result download remains wired exactly as before.</p>
+      </article>
+      <article class="hero-note hero-note-light">
+        <p class="note-kicker">Facts & numbers</p>
+        <div class="metric-grid">
+          <div>
+            <strong>3</strong>
+            <span>core workflows</span>
+          </div>
+          <div>
+            <strong>UTC</strong>
+            <span>time conversion</span>
+          </div>
+          <div>
+            <strong>ZIP + MP4</strong>
+            <span>final outputs</span>
+          </div>
+        </div>
+      </article>
+      <article class="hero-note hero-note-soft">
+        <p class="note-kicker">Made for</p>
+        <p class="note-copy">Rides, runs, travel footage, and any capture flow where GPX and camera metadata need to line up cleanly.</p>
+      </article>
+    </aside>
+  </section>
+
+  <section class="intro-grid">
+    <article class="story-panel">
+      <p class="section-label">Where precision meets clarity</p>
+      <h2>Upload once, refine only what matters, and export a result that is ready to use.</h2>
+      <p class="muted-text">
+        The page now mirrors the reference more closely: brighter layout, tighter navigation, clearer
+        call-to-action hierarchy, and cleaner content bands around the same tooling.
+      </p>
+    </article>
+
+    <article class="api-card" id="api-target">
+      <p class="section-label">API target</p>
+      <label for="api-base">Backend base URL</label>
+      <div class="input-row">
+        <input id="api-base" type="url" bind:value={apiBase} placeholder="http://localhost:8000" />
+        <button type="button" class="ghost" on:click={() => (apiBase = DEFAULT_API_BASE)} disabled={isBusy}>
+          Reset
+        </button>
+      </div>
+      <div class="api-status">
+        <p class="hint">Requests are sent to this API base. Change it only if the backend runs elsewhere.</p>
+      </div>
+    </article>
+  </section>
 
   {#if isBusy}
     <div class="loading-banner" role="status" aria-live="polite">
@@ -556,7 +647,18 @@
   {/if}
 
   <main class="content">
-    <section class="tool-grid">
+    <section class="content-intro">
+      <div>
+        <p class="section-label">Trim workflows</p>
+        <h2>Two ways to carve a route down to the moments you actually filmed.</h2>
+      </div>
+      <p class="muted-text">
+        Use a manual time window for direct control or let multiple video files define the export spans in
+        sequence.
+      </p>
+    </section>
+
+    <section class="tool-grid" id="trim-tools">
       <article class="tool-card">
         <header class="section-header">
           <p class="section-label">Trim by timestamps</p>
@@ -626,7 +728,7 @@
         {/if}
       </article>
 
-      <article class="tool-card">
+      <article class="tool-card accent-card">
         <header class="section-header">
           <p class="section-label">Trim by video batch</p>
           <h2>Split GPX by multiple videos</h2>
@@ -755,7 +857,23 @@
       </article>
     </section>
 
-    <section class="tool-card wide">
+    <section class="feature-band" id="animation-tools">
+      <div class="feature-band-copy">
+        <p class="section-label">Animation workflow</p>
+        <h2>Turn a route into a presentation-ready motion export.</h2>
+        <p class="muted-text">
+          The controls stay the same, but the section now reads more like a polished “work” area with a
+          darker contrast band and cleaner grouping for visual options.
+        </p>
+      </div>
+      <div class="feature-band-list" aria-label="Animation qualities">
+        <span>Auto duration from GPX when available</span>
+        <span>Tile style selection</span>
+        <span>Marker, trail, and opacity controls</span>
+      </div>
+    </section>
+
+    <section class="tool-card wide cinematic-card">
       <header class="section-header">
         <p class="section-label">Route animation</p>
         <h2>Render map animation</h2>
@@ -947,7 +1065,7 @@
   <footer class="site-footer">
     <div>
       <strong>GPX Helper</strong>
-      <p>Copyleft {currentYear} · Built for streamlined GPX and video workflows.</p>
+      <p>Copyleft {currentYear} · Streamlined GPX and video workflows, now styled closer to the Awake reference.</p>
     </div>
     <a class="ghost github-link" href="https://github.com/pooriat/GPX_helper" target="_blank" rel="noreferrer">
       <svg aria-hidden="true" viewBox="0 0 16 16" class="github-icon">
