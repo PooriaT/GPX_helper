@@ -550,6 +550,29 @@ button:disabled {
   gap: 14px;
 }
 
+.tile-preview {
+  margin: 0;
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+
+.tile-preview img {
+  width: min(100%, 132px);
+  aspect-ratio: 1;
+  display: block;
+  object-fit: cover;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: #eef3ee;
+}
+
+.tile-preview figcaption {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
 .options-title {
   color: #4c614e;
 }

@@ -60,12 +60,22 @@
     { value: 'opentopomap', label: 'OpenTopoMap (Topo)' }
   ];
 
+  const mapTilePreviewUrls = {
+    '': 'https://tile.openstreetmap.org/12/654/1582.png',
+    osm: 'https://tile.openstreetmap.org/12/654/1582.png',
+    cyclosm: 'https://a.tile-cyclosm.openstreetmap.fr/cyclosm/12/654/1582.png',
+    opentopomap: 'https://a.tile.opentopomap.org/12/654/1582.png'
+  };
+
   let activeRequestLabel = '';
   let estimatedSeconds = null;
   const currentYear = new Date().getFullYear();
   let trimByVideosSelectionId = 0;
 
   $: isBusy = [trimByTime, trimByVideos, mapAnimation].some((state) => state.status === 'loading');
+  $: currentMapTileOption =
+    mapTileOptions.find((option) => option.value === mapAnimation.tileType) ?? mapTileOptions[0];
+  $: currentMapTilePreview = mapTilePreviewUrls[mapAnimation.tileType] ?? mapTilePreviewUrls[''];
 
   onDestroy(() => {
     [trimByTime, trimByVideos, mapAnimation].forEach((state) => {
@@ -924,6 +934,14 @@
           <div class="options-group">
             <p class="options-title">Map tiles</p>
             <div class="options-stack">
+              <figure class="tile-preview">
+                <img
+                  src={currentMapTilePreview}
+                  alt={`${currentMapTileOption.label} map tile preview`}
+                  loading="lazy"
+                />
+                <figcaption>{currentMapTileOption.label}</figcaption>
+              </figure>
               <label>
                 Tile style
                 <select bind:value={mapAnimation.tileType}>
