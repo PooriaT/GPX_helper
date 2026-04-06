@@ -869,31 +869,34 @@
             required
           />
         </label>
-        <label>
-          Duration (seconds)
-          <input
-            type="number"
-            min="1"
-            step="1"
-            bind:value={mapAnimation.durationSeconds}
-            placeholder="45"
-            required
-          />
-        </label>
-        <label>
-          Frames per second (fps)
-          <input
-            type="number"
-            min="1"
-            step="1"
-            bind:value={mapAnimation.fps}
-            placeholder="30"
-            required
-          />
-        </label>
-        <div class="options-group">
+        <div class="animation-inline-fields">
+          <label class="compact-field">
+            Duration (seconds)
+            <input
+              type="number"
+              min="1"
+              step="1"
+              bind:value={mapAnimation.durationSeconds}
+              placeholder="45"
+              required
+            />
+          </label>
+          <label class="compact-field">
+            Frames per second (fps)
+            <input
+              type="number"
+              min="1"
+              step="1"
+              bind:value={mapAnimation.fps}
+              placeholder="30"
+              required
+            />
+          </label>
+        </div>
+        <div class="options-row">
+          <div class="options-group">
           <p class="options-title">Output size</p>
-          <div class="options-grid">
+          <div class="options-stack">
             <label>
               Resolution width (px)
               <input
@@ -917,18 +920,19 @@
               />
             </label>
           </div>
-        </div>
-        <div class="options-group">
-          <p class="options-title">Map tiles</p>
-          <div class="options-grid">
-            <label>
-              Tile style
-              <select bind:value={mapAnimation.tileType}>
-                {#each mapTileOptions as option}
-                  <option value={option.value}>{option.label}</option>
-                {/each}
-              </select>
-            </label>
+          </div>
+          <div class="options-group">
+            <p class="options-title">Map tiles</p>
+            <div class="options-stack">
+              <label>
+                Tile style
+                <select bind:value={mapAnimation.tileType}>
+                  {#each mapTileOptions as option}
+                    <option value={option.value}>{option.label}</option>
+                  {/each}
+                </select>
+              </label>
+            </div>
           </div>
         </div>
         <div class="options-group">

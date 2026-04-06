@@ -508,14 +508,46 @@ button:disabled {
   gap: 14px;
 }
 
-.options-group {
+.animation-inline-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 240px));
+  gap: 14px;
+  align-items: start;
+}
+
+.compact-field {
+  max-width: 240px;
+}
+
+.options-row {
   grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.options-row > .options-group {
+  height: 100%;
+}
+
+.options-group {
   display: grid;
   gap: 12px;
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 22px;
   background: var(--surface-soft);
+}
+
+.form-grid > .options-group {
+  grid-column: 1 / -1;
+}
+
+.options-stack {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
 }
 
 .options-title {
@@ -771,6 +803,15 @@ input[type='file']::file-selector-button {
   .options-grid,
   .input-row {
     grid-template-columns: 1fr;
+  }
+
+  .animation-inline-fields,
+  .options-row {
+    grid-template-columns: 1fr;
+  }
+
+  .compact-field {
+    max-width: none;
   }
 
   .form-actions {
