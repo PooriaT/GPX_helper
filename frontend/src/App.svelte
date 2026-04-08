@@ -1,5 +1,5 @@
 <script>
-  import { onDestroy } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { parseGpxDurationFromText, parseGpxTimeRangeFromText } from './gpx-metadata';
   import { loadEmbeddedVideoStart } from './video-metadata';
 
@@ -66,15 +66,69 @@
     opentopomap: 'https://a.tile.opentopomap.org/12/654/1582.png'
   };
 
+  const pages = [
+    {
+      id: 'trim',
+      href: '#/trim',
+      label: 'Trim GPX',
+      kicker: 'Trim workflows',
+      title: 'Trim GPX tracks around the footage you actually want to keep.',
+      description:
+        'Use a manual time window for direct control or let multiple video files define the export spans in sequence.',
+      tags: ['Trim by timestamps', 'Split by multiple videos', 'ZIP-ready exports']
+    },
+    {
+      id: 'animation',
+      href: '#/animation',
+      label: 'Route animation',
+      kicker: 'Animation workflow',
+      title: 'Render route animations from a dedicated export workspace.',
+      description:
+        'Tune duration, frame rate, map tiles, and trail styling without mixing the animation controls into the trim flow.',
+      tags: ['Render route MP4', 'Tile style selection', 'Marker and trail controls']
+    }
+  ];
+  const defaultPage = pages[0].id;
+
   let activeRequestLabel = '';
   let estimatedSeconds = null;
   const currentYear = new Date().getFullYear();
   let trimByVideosSelectionId = 0;
+  let currentPage = defaultPage;
 
   $: isBusy = [trimByTime, trimByVideos, mapAnimation].some((state) => state.status === 'loading');
   $: currentMapTileOption =
     mapTileOptions.find((option) => option.value === mapAnimation.tileType) ?? mapTileOptions[0];
   $: currentMapTilePreview = mapTilePreviewUrls[mapAnimation.tileType] ?? null;
+  $: activePage = pages.find((page) => page.id === currentPage) ?? pages[0];
+  $: alternatePage = pages.find((page) => page.id !== currentPage) ?? pages[0];
+
+  function normalizeHash(hash) {
+    const route = hash.replace(/^#\/?/, '').split(/[?#]/)[0].toLowerCase();
+    return pages.some((page) => page.id === route) ? route : defaultPage;
+  }
+
+  function syncPageFromHash(replace = false) {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const nextPage = normalizeHash(window.location.hash);
+    currentPage = nextPage;
+
+    const normalizedHash = `#/${nextPage}`;
+    if (window.location.hash !== normalizedHash) {
+      if (replace) {
+        window.history.replaceState(null, '', normalizedHash);
+      } else {
+        window.location.hash = normalizedHash;
+      }
+    }
+  }
+
+  onMount(() => {
+    syncPageFromHash(true);
+  });
 
   onDestroy(() => {
     [trimByTime, trimByVideos, mapAnimation].forEach((state) => {
@@ -533,7 +587,10 @@
 
 </script>
 
+<svelte:window on:hashchange={() => syncPageFromHash()} />
+
 <svelte:head>
+  <title>{activePage.label} · GPX Helper</title>
   <meta
     name="description"
     content="Run the GPX Helper API from the browser to trim GPX files or render route animations."
@@ -544,25 +601,48 @@
   <header class="topbar">
     <div class="brand-block">
       <p class="brand-mark">GPX Helper</p>
-      <p class="brand-caption">Route cleanup, video sync, and map output in one browser workspace.</p>
+      <p class="brand-caption">Route cleanup, video sync, and map output in two focused workspaces.</p>
     </div>
-    <nav class="topnav" aria-label="Sections">
-      <a href="#trim-tools">Services</a>
+    <nav class="topnav" aria-label="Main menu">
+      {#each pages as page}
+        <a
+          href={page.href}
+          class:topnav-link-active={currentPage === page.id}
+          aria-current={currentPage === page.id ? 'page' : undefined}
+        >
+          {page.label}
+        </a>
+      {/each}
     </nav>
-    <a class="topbar-cta" href="#trim-tools">Let&apos;s start</a>
+    <a class="topbar-cta" href={alternatePage.href}>Open {alternatePage.label}</a>
   </header>
 
   <section class="hero">
     <div class="hero-copy">
-      <p class="section-label">Video-synced GPX toolkit</p>
-      <h1>Building cleaner route exports with thoughtful browser tooling.</h1>
-      <p class="lede">
-        Trim GPX files by time, split them from multiple videos, and render a polished route animation
-        from the same page without changing your existing backend workflow.
-      </p>
+      <p class="section-label">{activePage.kicker}</p>
+      {#if currentPage === 'trim'}
+        <h1>Trim GPX</h1>
+        <p class="lede">{activePage.title}</p>
+        <p class="muted-text">
+          Match a route to one clip or a full batch of clips without leaving the trim page.
+        </p>
+      {:else}
+        <h1>Route animation</h1>
+        <p class="lede">{activePage.title}</p>
+        <p class="muted-text">
+          Keep map video settings on their own page so the export controls are easier to scan and adjust.
+        </p>
+      {/if}
       <div class="hero-actions">
-        <a class="hero-button" href="#trim-tools">Get started</a>
-        <a class="hero-button ghost-button" href="#animation-tools">View animation tools</a>
+        <a class="hero-button" href={alternatePage.href}>Open {alternatePage.label}</a>
+        <a
+          class="hero-button ghost-button"
+          href="https://github.com/pooriat/GPX_helper"
+          target="_blank"
+          rel="noreferrer"
+        >
+          GitHub
+        </a>
       </div>
       <div class="hero-proof">
         <div class="avatar-stack" aria-hidden="true">
@@ -572,14 +652,14 @@
           <span>MP</span>
         </div>
         <div class="proof-copy">
-          <strong>Trusted workflow</strong>
-          <span>Built around timestamp-safe trims, clip batching, and export-ready map renders.</span>
+          <strong>Focused workflow</strong>
+          <span>{activePage.description}</span>
         </div>
       </div>
       <div class="hero-tags" aria-label="Highlights">
-        <span>Trim by timestamps</span>
-        <span>Split by multiple videos</span>
-        <span>Render route MP4</span>
+        {#each activePage.tags as tag}
+          <span>{tag}</span>
+        {/each}
       </div>
     </div>
 
@@ -587,23 +667,46 @@
       <article class="hero-note hero-note-light">
         <p class="note-kicker">Facts & numbers</p>
         <div class="metric-grid">
-          <div>
-            <strong>3</strong>
-            <span>core workflows</span>
-          </div>
-          <div>
-            <strong>UTC</strong>
-            <span>time conversion</span>
-          </div>
-          <div>
-            <strong>ZIP + MP4</strong>
-            <span>final outputs</span>
-          </div>
+          {#if currentPage === 'trim'}
+            <div>
+              <strong>2</strong>
+              <span>trim modes</span>
+            </div>
+            <div>
+              <strong>UTC</strong>
+              <span>time conversion</span>
+            </div>
+            <div>
+              <strong>GPX + ZIP</strong>
+              <span>final outputs</span>
+            </div>
+          {:else}
+            <div>
+              <strong>MP4</strong>
+              <span>video export</span>
+            </div>
+            <div>
+              <strong>Tiles</strong>
+              <span>style selection</span>
+            </div>
+            <div>
+              <strong>Color</strong>
+              <span>trail controls</span>
+            </div>
+          {/if}
         </div>
       </article>
       <article class="hero-note hero-note-soft">
         <p class="note-kicker">Made for</p>
-        <p class="note-copy">Rides, runs, travel footage, and any capture flow where GPX and camera metadata need to line up cleanly.</p>
+        {#if currentPage === 'trim'}
+          <p class="note-copy">
+            Rides, runs, and travel footage where GPX timestamps need to line up exactly with source clips.
+          </p>
+        {:else}
+          <p class="note-copy">
+            Clean route visuals for recaps, presentations, and social exports built from a single GPX track.
+          </p>
+        {/if}
       </article>
     </aside>
   </section>
@@ -625,444 +728,425 @@
   {/if}
 
   <main class="content">
-    <section class="content-intro">
-      <div>
-        <p class="section-label">Trim workflows</p>
-        <h2>Two ways to carve a route down to the moments you actually filmed.</h2>
-      </div>
-      <p class="muted-text">
-        Use a manual time window for direct control or let multiple video files define the export spans in
-        sequence.
-      </p>
-    </section>
+    {#if currentPage === 'trim'}
+      <section class="tool-grid">
+        <article class="tool-card">
+          <header class="section-header">
+            <p class="section-label">Trim by timestamps</p>
+            <h2>Trim GPX by time window</h2>
+            <p class="muted-text">Send your GPX file with start and end times to crop the track.</p>
+          </header>
 
-    <section class="tool-grid" id="trim-tools">
-      <article class="tool-card">
-        <header class="section-header">
-          <p class="section-label">Trim by timestamps</p>
-          <h2>Trim GPX by time window</h2>
-          <p class="muted-text">Send your GPX file with start and end times to crop the track.</p>
-        </header>
+          <form class="form-grid" on:submit|preventDefault={submitTrimByTime}>
+            <label>
+              GPX file
+              <input
+                type="file"
+                accept=".gpx,application/gpx+xml"
+                on:change={(event) =>
+                  (trimByTime = { ...trimByTime, gpxFile: event.target.files?.[0] ?? null })}
+                required
+              />
+            </label>
+            <label>
+              Optional video file
+              <input
+                type="file"
+                accept="video/*"
+                on:change={async (event) => {
+                  const file = event.target.files?.[0] ?? null;
+                  trimByTime = { ...trimByTime, videoFile: file };
+                  if (!file) return;
+                  try {
+                    const { start, end } = await deriveVideoTimes(file);
+                    trimByTime = {
+                      ...trimByTime,
+                      videoFile: file,
+                      startLocal: toLocalDateTimeValue(start),
+                      endLocal: toLocalDateTimeValue(end),
+                      error: ''
+                    };
+                  } catch (error) {
+                    trimByTime = {
+                      ...trimByTime,
+                      error: parseError(error, 'Unable to read video metadata.')
+                    };
+                  }
+                }}
+              />
+            </label>
+            <label>
+              Start time
+              <input type="datetime-local" step="1" bind:value={trimByTime.startLocal} required />
+            </label>
+            <label>
+              End time
+              <input type="datetime-local" step="1" bind:value={trimByTime.endLocal} required />
+            </label>
+            <div class="form-actions">
+              <button type="submit" disabled={isBusy}>Trim track</button>
+              <p class="hint">
+                Add a video to auto-fill the start time from embedded video metadata and the end time as
+                start plus duration. Times are converted to UTC before sending to the API.
+              </p>
+            </div>
+          </form>
+          {#if trimByTime.error}
+            <p class="error" role="alert">{trimByTime.error}</p>
+          {/if}
+          {#if trimByTime.message}
+            <p class="success" aria-live="polite">{trimByTime.message}</p>
+          {/if}
+          {#if trimByTime.downloadUrl}
+            <a class="download" href={trimByTime.downloadUrl} download={trimByTime.filename}>
+              Download {trimByTime.filename}
+            </a>
+          {/if}
+        </article>
 
-        <form class="form-grid" on:submit|preventDefault={submitTrimByTime}>
-          <label>
-            GPX file
-            <input
-              type="file"
-              accept=".gpx,application/gpx+xml"
-              on:change={(event) =>
-                (trimByTime = { ...trimByTime, gpxFile: event.target.files?.[0] ?? null })}
-              required
-            />
-          </label>
-          <label>
-            Optional video file
-            <input
-              type="file"
-              accept="video/*"
-              on:change={async (event) => {
-                const file = event.target.files?.[0] ?? null;
-                trimByTime = { ...trimByTime, videoFile: file };
-                if (!file) return;
-                try {
-                  const { start, end } = await deriveVideoTimes(file);
-                  trimByTime = {
-                    ...trimByTime,
-                    videoFile: file,
-                    startLocal: toLocalDateTimeValue(start),
-                    endLocal: toLocalDateTimeValue(end),
-                    error: ''
-                  };
-                } catch (error) {
-                  trimByTime = { ...trimByTime, error: parseError(error, 'Unable to read video metadata.') };
-                }
-              }}
-            />
-          </label>
-          <label>
-            Start time
-            <input type="datetime-local" step="1" bind:value={trimByTime.startLocal} required />
-          </label>
-          <label>
-            End time
-            <input type="datetime-local" step="1" bind:value={trimByTime.endLocal} required />
-          </label>
-          <div class="form-actions">
-            <button type="submit" disabled={isBusy}>Trim track</button>
-            <p class="hint">
-              Add a video to auto-fill the start time from embedded video metadata and the end time as
-              start plus duration. Times are converted to UTC before sending to the API.
+        <article class="tool-card accent-card">
+          <header class="section-header">
+            <p class="section-label">Trim by video batch</p>
+            <h2>Split GPX by multiple videos</h2>
+            <p class="muted-text">
+              Upload one GPX track and multiple videos to generate numbered GPX clips in a ZIP file.
             </p>
-          </div>
-        </form>
-        {#if trimByTime.error}
-          <p class="error" role="alert">{trimByTime.error}</p>
-        {/if}
-        {#if trimByTime.message}
-          <p class="success" aria-live="polite">{trimByTime.message}</p>
-        {/if}
-        {#if trimByTime.downloadUrl}
-          <a class="download" href={trimByTime.downloadUrl} download={trimByTime.filename}>Download {trimByTime.filename}</a>
-        {/if}
-      </article>
+          </header>
 
-      <article class="tool-card accent-card">
-        <header class="section-header">
-          <p class="section-label">Trim by video batch</p>
-          <h2>Split GPX by multiple videos</h2>
-          <p class="muted-text">
-            Upload one GPX track and multiple videos to generate numbered GPX clips in a ZIP file.
-          </p>
-        </header>
-
-        <form class="form-grid" on:submit|preventDefault={submitTrimByVideos}>
-          <label>
-            GPX file
-            <input
-              type="file"
-              accept=".gpx,application/gpx+xml"
-              on:change={(event) =>
-                (trimByVideos = {
-                  ...trimByVideos,
-                  gpxFile: event.target.files?.[0] ?? null,
-                  error: ''
-                })}
-              required
-            />
-          </label>
-          <label>
-            Video files
-            <input
-              type="file"
-              accept="video/*"
-              multiple
-              on:change={async (event) => {
-                const selectionId = ++trimByVideosSelectionId;
-                const files = Array.from(event.target.files ?? []);
-
-                trimByVideos = {
-                  ...trimByVideos,
-                  videoFiles: files,
-                  clips: [],
-                  totalDurationSeconds: 0,
-                  isPreparing: files.length > 0,
-                  error: '',
-                  message: '',
-                  status: 'idle'
-                };
-
-                if (!files.length) {
-                  return;
-                }
-
-                try {
-                  const clips = await Promise.all(files.map((file, index) => buildVideoClip(file, index)));
-                  if (selectionId !== trimByVideosSelectionId) {
-                    return;
-                  }
-
-                  const totalDurationSeconds = clips.reduce(
-                    (sum, clip) => sum + clip.durationSeconds,
-                    0
-                  );
-                  trimByVideos = {
+          <form class="form-grid" on:submit|preventDefault={submitTrimByVideos}>
+            <label>
+              GPX file
+              <input
+                type="file"
+                accept=".gpx,application/gpx+xml"
+                on:change={(event) =>
+                  (trimByVideos = {
                     ...trimByVideos,
-                    videoFiles: files,
-                    clips,
-                    totalDurationSeconds,
-                    isPreparing: false,
-                    status: 'idle',
+                    gpxFile: event.target.files?.[0] ?? null,
                     error: ''
-                  };
-                } catch (error) {
-                  if (selectionId !== trimByVideosSelectionId) {
-                    return;
-                  }
+                  })}
+                required
+              />
+            </label>
+            <label>
+              Video files
+              <input
+                type="file"
+                accept="video/*"
+                multiple
+                on:change={async (event) => {
+                  const selectionId = ++trimByVideosSelectionId;
+                  const files = Array.from(event.target.files ?? []);
+
                   trimByVideos = {
                     ...trimByVideos,
                     videoFiles: files,
                     clips: [],
                     totalDurationSeconds: 0,
-                    isPreparing: false,
-                    status: 'idle',
-                    error: parseError(error, 'Unable to read video metadata.')
+                    isPreparing: files.length > 0,
+                    error: '',
+                    message: '',
+                    status: 'idle'
                   };
+
+                  if (!files.length) {
+                    return;
+                  }
+
+                  try {
+                    const clips = await Promise.all(files.map((file, index) => buildVideoClip(file, index)));
+                    if (selectionId !== trimByVideosSelectionId) {
+                      return;
+                    }
+
+                    const totalDurationSeconds = clips.reduce((sum, clip) => sum + clip.durationSeconds, 0);
+                    trimByVideos = {
+                      ...trimByVideos,
+                      videoFiles: files,
+                      clips,
+                      totalDurationSeconds,
+                      isPreparing: false,
+                      status: 'idle',
+                      error: ''
+                    };
+                  } catch (error) {
+                    if (selectionId !== trimByVideosSelectionId) {
+                      return;
+                    }
+                    trimByVideos = {
+                      ...trimByVideos,
+                      videoFiles: files,
+                      clips: [],
+                      totalDurationSeconds: 0,
+                      isPreparing: false,
+                      status: 'idle',
+                      error: parseError(error, 'Unable to read video metadata.')
+                    };
+                  }
+                }}
+                required
+              />
+            </label>
+            <div class="options-group">
+              <p class="options-title">Detected clips</p>
+              {#if trimByVideos.clips.length}
+                <p class="hint">
+                  {trimByVideos.clips.length} clips detected with a combined duration of
+                  {` ${formatDurationLabel(trimByVideos.totalDurationSeconds)}.`}
+                </p>
+                <div class="clip-list" aria-live="polite">
+                  {#each trimByVideos.clips as clip, index (clip.id)}
+                    <div class="clip-item">
+                      <p class="clip-title">{index + 1}.gpx</p>
+                      <p class="clip-meta">{clip.name}</p>
+                      <p class="clip-meta">
+                        {clip.startLocal} to {clip.endLocal} · {formatDurationLabel(clip.durationSeconds)}
+                      </p>
+                    </div>
+                  {/each}
+                </div>
+              {:else if trimByVideos.isPreparing}
+                <p class="hint">Reading video durations and embedded timestamps from the selected files.</p>
+              {:else}
+                <p class="hint">Select videos to calculate their durations and embedded timestamps in the browser.</p>
+              {/if}
+            </div>
+            <div class="form-actions">
+              <button type="submit" disabled={isBusy || trimByVideos.isPreparing}>Create ZIP</button>
+              <p class="hint">
+                Each output GPX is named by its selection order: `1.gpx`, `2.gpx`, and so on.
+              </p>
+            </div>
+          </form>
+          {#if trimByVideos.error}
+            <p class="error" role="alert">{trimByVideos.error}</p>
+          {/if}
+          {#if trimByVideos.message}
+            <p class="success" aria-live="polite">{trimByVideos.message}</p>
+          {/if}
+          {#if trimByVideos.downloadUrl}
+            <a class="download" href={trimByVideos.downloadUrl} download={trimByVideos.filename}>
+              Download {trimByVideos.filename}
+            </a>
+          {/if}
+        </article>
+      </section>
+    {:else}
+      <section class="tool-card wide cinematic-card">
+        <header class="section-header">
+          <p class="section-label">Route animation</p>
+          <h2>Render map animation</h2>
+          <p class="muted-text">Send your GPX to the API to render an MP4 route animation.</p>
+        </header>
+
+        <form class="form-grid" on:submit|preventDefault={submitMapAnimation}>
+          <label>
+            GPX file
+            <input
+              type="file"
+              accept=".gpx,application/gpx+xml"
+              on:change={async (event) => {
+                const file = event.target.files?.[0] ?? null;
+                let durationSeconds = mapAnimation.durationSeconds;
+                if (file) {
+                  const parsedDuration = await parseGpxDuration(file);
+                  if (parsedDuration) {
+                    durationSeconds = parsedDuration;
+                  }
                 }
+                mapAnimation = { ...mapAnimation, gpxFile: file, durationSeconds };
               }}
               required
             />
           </label>
-          <div class="options-group">
-            <p class="options-title">Detected clips</p>
-            {#if trimByVideos.clips.length}
-              <p class="hint">
-                {trimByVideos.clips.length} clips detected with a combined duration of
-                {` ${formatDurationLabel(trimByVideos.totalDurationSeconds)}.`}
-              </p>
-              <div class="clip-list" aria-live="polite">
-                {#each trimByVideos.clips as clip, index (clip.id)}
-                  <div class="clip-item">
-                    <p class="clip-title">{index + 1}.gpx</p>
-                    <p class="clip-meta">{clip.name}</p>
-                    <p class="clip-meta">
-                      {clip.startLocal} to {clip.endLocal} · {formatDurationLabel(clip.durationSeconds)}
-                    </p>
-                  </div>
-                {/each}
-              </div>
-            {:else if trimByVideos.isPreparing}
-              <p class="hint">Reading video durations and embedded timestamps from the selected files.</p>
-            {:else}
-              <p class="hint">Select videos to calculate their durations and embedded timestamps in the browser.</p>
-            {/if}
-          </div>
-          <div class="form-actions">
-            <button type="submit" disabled={isBusy || trimByVideos.isPreparing}>Create ZIP</button>
-            <p class="hint">
-              Each output GPX is named by its selection order: `1.gpx`, `2.gpx`, and so on.
-            </p>
-          </div>
-        </form>
-        {#if trimByVideos.error}
-          <p class="error" role="alert">{trimByVideos.error}</p>
-        {/if}
-        {#if trimByVideos.message}
-          <p class="success" aria-live="polite">{trimByVideos.message}</p>
-        {/if}
-        {#if trimByVideos.downloadUrl}
-          <a class="download" href={trimByVideos.downloadUrl} download={trimByVideos.filename}>Download {trimByVideos.filename}</a>
-        {/if}
-      </article>
-    </section>
-
-    <section class="feature-band" id="animation-tools">
-      <div class="feature-band-copy">
-        <p class="section-label">Animation workflow</p>
-        <h2>Turn a route into a presentation-ready motion export.</h2>
-        <p class="muted-text">
-          The controls stay the same, but the section now reads more like a polished “work” area with a
-          darker contrast band and cleaner grouping for visual options.
-        </p>
-      </div>
-      <div class="feature-band-list" aria-label="Animation qualities">
-        <span>Auto duration from GPX when available</span>
-        <span>Tile style selection</span>
-        <span>Marker, trail, and opacity controls</span>
-      </div>
-    </section>
-
-    <section class="tool-card wide cinematic-card">
-      <header class="section-header">
-        <p class="section-label">Route animation</p>
-        <h2>Render map animation</h2>
-        <p class="muted-text">Send your GPX to the API to render an MP4 route animation.</p>
-      </header>
-
-      <form class="form-grid" on:submit|preventDefault={submitMapAnimation}>
-        <label>
-          GPX file
-          <input
-            type="file"
-            accept=".gpx,application/gpx+xml"
-            on:change={async (event) => {
-              const file = event.target.files?.[0] ?? null;
-              let durationSeconds = mapAnimation.durationSeconds;
-              if (file) {
-                const parsedDuration = await parseGpxDuration(file);
-                if (parsedDuration) {
-                  durationSeconds = parsedDuration;
-                }
-              }
-              mapAnimation = { ...mapAnimation, gpxFile: file, durationSeconds };
-            }}
-            required
-          />
-        </label>
-        <div class="animation-inline-fields">
-          <label class="compact-field">
-            Duration (seconds)
-            <input
-              type="number"
-              min="1"
-              step="1"
-              bind:value={mapAnimation.durationSeconds}
-              placeholder="45"
-              required
-            />
-          </label>
-          <label class="compact-field">
-            Frames per second (fps)
-            <input
-              type="number"
-              min="1"
-              step="1"
-              bind:value={mapAnimation.fps}
-              placeholder="30"
-              required
-            />
-          </label>
-        </div>
-        <div class="options-row">
-          <div class="options-group">
-          <p class="options-title">Output size</p>
-          <div class="options-stack">
-            <label>
-              Resolution width (px)
+          <div class="animation-inline-fields">
+            <label class="compact-field">
+              Duration (seconds)
               <input
                 type="number"
                 min="1"
                 step="1"
-                bind:value={mapAnimation.resolutionWidth}
-                placeholder="1024"
+                bind:value={mapAnimation.durationSeconds}
+                placeholder="45"
                 required
               />
             </label>
-            <label>
-              Resolution height (px)
+            <label class="compact-field">
+              Frames per second (fps)
               <input
                 type="number"
                 min="1"
                 step="1"
-                bind:value={mapAnimation.resolutionHeight}
-                placeholder="1024"
+                bind:value={mapAnimation.fps}
+                placeholder="30"
                 required
               />
             </label>
           </div>
-          </div>
-          <div class="options-group">
-            <p class="options-title">Map tiles</p>
-            <div class="options-stack">
-              <figure class="tile-preview">
-                {#if currentMapTilePreview}
-                  <img
-                    src={currentMapTilePreview}
-                    alt={`${currentMapTileOption.label} map tile preview`}
-                    loading="lazy"
+          <div class="options-row">
+            <div class="options-group">
+              <p class="options-title">Output size</p>
+              <div class="options-stack">
+                <label>
+                  Resolution width (px)
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    bind:value={mapAnimation.resolutionWidth}
+                    placeholder="1024"
+                    required
                   />
-                  <figcaption>{currentMapTileOption.label}</figcaption>
-                {:else}
-                  <figcaption>
-                    {currentMapTileOption.label} uses the backend tile configuration, so no fixed
-                    preview is shown here.
-                  </figcaption>
-                {/if}
-              </figure>
+                </label>
+                <label>
+                  Resolution height (px)
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    bind:value={mapAnimation.resolutionHeight}
+                    placeholder="1024"
+                    required
+                  />
+                </label>
+              </div>
+            </div>
+            <div class="options-group">
+              <p class="options-title">Map tiles</p>
+              <div class="options-stack">
+                <figure class="tile-preview">
+                  {#if currentMapTilePreview}
+                    <img
+                      src={currentMapTilePreview}
+                      alt={`${currentMapTileOption.label} map tile preview`}
+                      loading="lazy"
+                    />
+                    <figcaption>{currentMapTileOption.label}</figcaption>
+                  {:else}
+                    <figcaption>
+                      {currentMapTileOption.label} uses the backend tile configuration, so no fixed preview is
+                      shown here.
+                    </figcaption>
+                  {/if}
+                </figure>
+                <label>
+                  Tile style
+                  <select bind:value={mapAnimation.tileType}>
+                    {#each mapTileOptions as option}
+                      <option value={option.value}>{option.label}</option>
+                    {/each}
+                  </select>
+                </label>
+              </div>
+            </div>
+          </div>
+          <div class="options-group">
+            <p class="options-title">Style options</p>
+            <div class="options-grid">
               <label>
-                Tile style
-                <select bind:value={mapAnimation.tileType}>
-                  {#each mapTileOptions as option}
-                    <option value={option.value}>{option.label}</option>
-                  {/each}
-                </select>
+                Marker color
+                <div class="color-control">
+                  <input
+                    class="color-picker"
+                    type="color"
+                    bind:value={mapAnimation.markerColor}
+                    style={`--picker-color: ${mapAnimation.markerColor};`}
+                  />
+                  <span class="color-value">{mapAnimation.markerColor}</span>
+                </div>
+              </label>
+              <label>
+                Marker size (px)
+                <input
+                  type="number"
+                  min="1"
+                  step="0.5"
+                  bind:value={mapAnimation.markerSize}
+                  placeholder="6"
+                />
+              </label>
+              <label>
+                Animated trail color
+                <div class="color-control">
+                  <input
+                    class="color-picker"
+                    type="color"
+                    bind:value={mapAnimation.trailColor}
+                    style={`--picker-color: ${mapAnimation.trailColor};`}
+                  />
+                  <span class="color-value">{mapAnimation.trailColor}</span>
+                </div>
+              </label>
+              <label>
+                Full trail color
+                <div class="color-control">
+                  <input
+                    class="color-picker"
+                    type="color"
+                    bind:value={mapAnimation.fullTrailColor}
+                    style={`--picker-color: ${mapAnimation.fullTrailColor};`}
+                  />
+                  <span class="color-value">{mapAnimation.fullTrailColor}</span>
+                </div>
+              </label>
+              <label>
+                Full trail opacity
+                <input
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  bind:value={mapAnimation.fullTrailOpacity}
+                  placeholder="0.8"
+                />
+              </label>
+              <label>
+                Line width (px)
+                <input
+                  type="number"
+                  min="0.5"
+                  step="0.1"
+                  bind:value={mapAnimation.lineWidth}
+                  placeholder="2.5"
+                />
+              </label>
+              <label>
+                Animated line opacity
+                <input
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  bind:value={mapAnimation.lineOpacity}
+                  placeholder="1"
+                />
               </label>
             </div>
           </div>
-        </div>
-        <div class="options-group">
-          <p class="options-title">Style options</p>
-          <div class="options-grid">
-            <label>
-              Marker color
-              <div class="color-control">
-                <input
-                  class="color-picker"
-                  type="color"
-                  bind:value={mapAnimation.markerColor}
-                  style={`--picker-color: ${mapAnimation.markerColor};`}
-                />
-                <span class="color-value">{mapAnimation.markerColor}</span>
-              </div>
-            </label>
-            <label>
-              Marker size (px)
-              <input
-                type="number"
-                min="1"
-                step="0.5"
-                bind:value={mapAnimation.markerSize}
-                placeholder="6"
-              />
-            </label>
-            <label>
-              Animated trail color
-              <div class="color-control">
-                <input
-                  class="color-picker"
-                  type="color"
-                  bind:value={mapAnimation.trailColor}
-                  style={`--picker-color: ${mapAnimation.trailColor};`}
-                />
-                <span class="color-value">{mapAnimation.trailColor}</span>
-              </div>
-            </label>
-            <label>
-              Full trail color
-              <div class="color-control">
-                <input
-                  class="color-picker"
-                  type="color"
-                  bind:value={mapAnimation.fullTrailColor}
-                  style={`--picker-color: ${mapAnimation.fullTrailColor};`}
-                />
-                <span class="color-value">{mapAnimation.fullTrailColor}</span>
-              </div>
-            </label>
-            <label>
-              Full trail opacity
-              <input
-                type="number"
-                min="0"
-                max="1"
-                step="0.05"
-                bind:value={mapAnimation.fullTrailOpacity}
-                placeholder="0.8"
-              />
-            </label>
-            <label>
-              Line width (px)
-              <input
-                type="number"
-                min="0.5"
-                step="0.1"
-                bind:value={mapAnimation.lineWidth}
-                placeholder="2.5"
-              />
-            </label>
-            <label>
-              Animated line opacity
-              <input
-                type="number"
-                min="0"
-                max="1"
-                step="0.05"
-                bind:value={mapAnimation.lineOpacity}
-                placeholder="1"
-              />
-            </label>
+          <div class="form-actions">
+            <button type="submit" disabled={isBusy}>Render animation</button>
+            <p class="hint">Duration auto-fills from the GPX timestamps when available.</p>
           </div>
-        </div>
-        <div class="form-actions">
-          <button type="submit" disabled={isBusy}>Render animation</button>
-          <p class="hint">Duration auto-fills from the GPX timestamps when available.</p>
-        </div>
-      </form>
-      {#if mapAnimation.error}
-        <p class="error" role="alert">{mapAnimation.error}</p>
-      {/if}
-      {#if mapAnimation.message}
-        <p class="success" aria-live="polite">{mapAnimation.message}</p>
-      {/if}
-      {#if mapAnimation.downloadUrl}
-        <a class="download" href={mapAnimation.downloadUrl} download={mapAnimation.filename}>Download {mapAnimation.filename}</a>
-      {/if}
-    </section>
+        </form>
+        {#if mapAnimation.error}
+          <p class="error" role="alert">{mapAnimation.error}</p>
+        {/if}
+        {#if mapAnimation.message}
+          <p class="success" aria-live="polite">{mapAnimation.message}</p>
+        {/if}
+        {#if mapAnimation.downloadUrl}
+          <a class="download" href={mapAnimation.downloadUrl} download={mapAnimation.filename}>
+            Download {mapAnimation.filename}
+          </a>
+        {/if}
+      </section>
+    {/if}
   </main>
 
   <footer class="site-footer">
     <div>
       <strong>GPX Helper</strong>
-      <p>Copyleft {currentYear} · Streamlined GPX and video workflows, now styled closer to the Awake reference.</p>
+      <p>Copyleft {currentYear}</p>
     </div>
     <a class="ghost github-link" href="https://github.com/pooriat/GPX_helper" target="_blank" rel="noreferrer">
       <svg aria-hidden="true" viewBox="0 0 16 16" class="github-icon">

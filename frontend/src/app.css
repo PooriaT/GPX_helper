@@ -104,12 +104,28 @@ select {
 }
 
 .topnav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid transparent;
   font-size: 0.95rem;
   font-weight: 600;
   color: #324034;
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
 }
 
 .topnav a:hover {
+  background: #f6f8f4;
+  border-color: #d4ddd3;
+  color: var(--green);
+}
+
+.topnav-link-active {
+  background: var(--green-3);
+  border-color: #cfe0d1;
   color: var(--green);
 }
 
@@ -761,6 +777,10 @@ input[type='file']::file-selector-button {
   font-family: 'Sora', sans-serif;
 }
 
+.site-footer p {
+  margin: 0;
+}
+
 .github-link {
   gap: 8px;
   font-weight: 700;
@@ -874,5 +894,9 @@ input[type='file']::file-selector-button {
     width: 100%;
     justify-content: center;
     text-align: center;
+  }
+
+  .topnav {
+    width: 100%;
   }
 }
