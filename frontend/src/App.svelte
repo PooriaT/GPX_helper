@@ -71,21 +71,21 @@
       id: 'trim',
       href: '#/trim',
       label: 'Trim GPX',
-      kicker: 'Trim workflows',
-      title: 'Trim GPX tracks around the footage you actually want to keep.',
+      kicker: 'Trim workspace',
+      title: 'Trim GPX tracks with a clear, two-step workflow.',
       description:
-        'Use a manual time window for direct control or let multiple video files define the export spans in sequence.',
-      tags: ['Trim by timestamps', 'Split by multiple videos', 'ZIP-ready exports']
+        'Choose a manual time window or generate sequential trims from multiple videos. Both options keep the same input and export logic, but present it in a simpler layout.',
+      tags: ['Manual time range', 'Video-based split', 'ZIP-ready exports']
     },
     {
       id: 'animation',
       href: '#/animation',
       label: 'Route animation',
-      kicker: 'Animation workflow',
-      title: 'Render route animations from a dedicated export workspace.',
+      kicker: 'Animation workspace',
+      title: 'Render route animations from a dedicated export screen.',
       description:
-        'Tune duration, frame rate, map tiles, and trail styling without mixing the animation controls into the trim flow.',
-      tags: ['Render route MP4', 'Tile style selection', 'Marker and trail controls']
+        'Adjust duration, output size, tile style, and route styling in one focused screen without mixing animation settings into the trim workflow.',
+      tags: ['MP4 export', 'Tile styles', 'Route styling']
     }
   ];
   const defaultPage = pages[0].id;
@@ -597,118 +597,41 @@
   />
 </svelte:head>
 
-<div class="page-shell">
-  <header class="topbar">
+<div class="app-shell">
+  <header class="app-header">
     <div class="brand-block">
       <p class="brand-mark">GPX Helper</p>
-      <p class="brand-caption">Route cleanup, video sync, and map output in two focused workspaces.</p>
+      <p class="brand-caption">Trim tracks, line up footage, and export route animations from one calm workspace.</p>
     </div>
-    <nav class="topnav" aria-label="Main menu">
+    <a class="secondary-link github-link" href="https://github.com/pooriat/GPX_helper" target="_blank" rel="noreferrer">
+      <svg aria-hidden="true" viewBox="0 0 16 16" class="github-icon">
+        <path
+          fill="currentColor"
+          d="M8 0C3.58 0 0 3.58 0 8a8 8 0 005.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.2 1.87.86 2.33.66.07-.52.28-.86.51-1.06-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.01.08-2.1 0 0 .67-.21 2.2.82a7.62 7.62 0 012 0c1.53-1.04 2.2-.82 2.2-.82.44 1.09.16 1.9.08 2.1.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.19 0 .21.15.46.55.38A8 8 0 0016 8c0-4.42-3.58-8-8-8z"
+        />
+      </svg>
+      <span>View source</span>
+    </a>
+  </header>
+
+  <section class="workspace-bar">
+    <div class="workspace-copy">
+      <p class="section-label">{activePage.kicker}</p>
+      <h1>{activePage.label}</h1>
+      <p class="lede">{activePage.title}</p>
+      <p class="muted-text">{activePage.description}</p>
+    </div>
+    <nav class="workspace-tabs" aria-label="Main menu">
       {#each pages as page}
         <a
           href={page.href}
-          class:topnav-link-active={currentPage === page.id}
+          class:workspace-tab-active={currentPage === page.id}
           aria-current={currentPage === page.id ? 'page' : undefined}
         >
           {page.label}
         </a>
       {/each}
     </nav>
-    <a class="topbar-cta" href={alternatePage.href}>Open {alternatePage.label}</a>
-  </header>
-
-  <section class="hero">
-    <div class="hero-copy">
-      <p class="section-label">{activePage.kicker}</p>
-      {#if currentPage === 'trim'}
-        <h1>Trim GPX</h1>
-        <p class="lede">{activePage.title}</p>
-        <p class="muted-text">
-          Match a route to one clip or a full batch of clips without leaving the trim page.
-        </p>
-      {:else}
-        <h1>Route animation</h1>
-        <p class="lede">{activePage.title}</p>
-        <p class="muted-text">
-          Keep map video settings on their own page so the export controls are easier to scan and adjust.
-        </p>
-      {/if}
-      <div class="hero-actions">
-        <a class="hero-button" href={alternatePage.href}>Open {alternatePage.label}</a>
-        <a
-          class="hero-button ghost-button"
-          href="https://github.com/pooriat/GPX_helper"
-          target="_blank"
-          rel="noreferrer"
-        >
-          GitHub
-        </a>
-      </div>
-      <div class="hero-proof">
-        <div class="avatar-stack" aria-hidden="true">
-          <span>GP</span>
-          <span>VX</span>
-          <span>TR</span>
-          <span>MP</span>
-        </div>
-        <div class="proof-copy">
-          <strong>Focused workflow</strong>
-          <span>{activePage.description}</span>
-        </div>
-      </div>
-      <div class="hero-tags" aria-label="Highlights">
-        {#each activePage.tags as tag}
-          <span>{tag}</span>
-        {/each}
-      </div>
-    </div>
-
-    <aside class="hero-aside">
-      <article class="hero-note hero-note-light">
-        <p class="note-kicker">Facts & numbers</p>
-        <div class="metric-grid">
-          {#if currentPage === 'trim'}
-            <div>
-              <strong>2</strong>
-              <span>trim modes</span>
-            </div>
-            <div>
-              <strong>UTC</strong>
-              <span>time conversion</span>
-            </div>
-            <div>
-              <strong>GPX + ZIP</strong>
-              <span>final outputs</span>
-            </div>
-          {:else}
-            <div>
-              <strong>MP4</strong>
-              <span>video export</span>
-            </div>
-            <div>
-              <strong>Tiles</strong>
-              <span>style selection</span>
-            </div>
-            <div>
-              <strong>Color</strong>
-              <span>trail controls</span>
-            </div>
-          {/if}
-        </div>
-      </article>
-      <article class="hero-note hero-note-soft">
-        <p class="note-kicker">Made for</p>
-        {#if currentPage === 'trim'}
-          <p class="note-copy">
-            Rides, runs, and travel footage where GPX timestamps need to line up exactly with source clips.
-          </p>
-        {:else}
-          <p class="note-copy">
-            Clean route visuals for recaps, presentations, and social exports built from a single GPX track.
-          </p>
-        {/if}
-      </article>
-    </aside>
   </section>
 
   {#if isBusy}
@@ -729,12 +652,39 @@
 
   <main class="content">
     {#if currentPage === 'trim'}
-      <section class="tool-grid">
-        <article class="tool-card">
+      <section class="overview-grid">
+        <article class="info-card">
+          <p class="section-label">Choose a workflow</p>
+          <h2>Two ways to trim the same GPX track</h2>
+          <p class="muted-text">
+            Use the simplest option that matches your source material. Both workflows keep the same backend behavior.
+          </p>
+          <ul class="feature-list">
+            <li>Trim by time window when you already know the exact start and end timestamps.</li>
+            <li>Split by multiple videos when each clip should become its own numbered GPX segment.</li>
+            <li>Video metadata is still read in the browser to prefill times before anything is sent to the API.</li>
+          </ul>
+        </article>
+
+        <article class="info-card info-card-muted">
+          <p class="section-label">This page includes</p>
+          <div class="tag-list" aria-label="Highlights">
+            {#each activePage.tags as tag}
+              <span>{tag}</span>
+            {/each}
+          </div>
+          <p class="supporting-copy">
+            Need route video output instead? Switch to <a class="inline-link" href={alternatePage.href}>{alternatePage.label}</a>.
+          </p>
+        </article>
+      </section>
+
+      <section class="workflow-grid">
+        <article class="tool-card workflow-card">
           <header class="section-header">
             <p class="section-label">Trim by timestamps</p>
             <h2>Trim GPX by time window</h2>
-            <p class="muted-text">Send your GPX file with start and end times to crop the track.</p>
+            <p class="muted-text">Upload a GPX file, set a start and end time, and export a single trimmed track.</p>
           </header>
 
           <form class="form-grid" on:submit|preventDefault={submitTrimByTime}>
@@ -786,8 +736,7 @@
             <div class="form-actions">
               <button type="submit" disabled={isBusy}>Trim track</button>
               <p class="hint">
-                Add a video to auto-fill the start time from embedded video metadata and the end time as
-                start plus duration. Times are converted to UTC before sending to the API.
+                Optional video metadata can fill the time range for you. Submitted timestamps are converted to UTC before the request is sent.
               </p>
             </div>
           </form>
@@ -804,12 +753,12 @@
           {/if}
         </article>
 
-        <article class="tool-card accent-card">
+        <article class="tool-card workflow-card workflow-card-emphasis">
           <header class="section-header">
             <p class="section-label">Trim by video batch</p>
             <h2>Split GPX by multiple videos</h2>
             <p class="muted-text">
-              Upload one GPX track and multiple videos to generate numbered GPX clips in a ZIP file.
+              Upload one GPX file and multiple videos to generate one numbered GPX segment per clip in a ZIP file.
             </p>
           </header>
 
@@ -908,13 +857,13 @@
               {:else if trimByVideos.isPreparing}
                 <p class="hint">Reading video durations and embedded timestamps from the selected files.</p>
               {:else}
-                <p class="hint">Select videos to calculate their durations and embedded timestamps in the browser.</p>
+                <p class="hint">Select videos to calculate durations and embedded timestamps before creating the ZIP.</p>
               {/if}
             </div>
             <div class="form-actions">
               <button type="submit" disabled={isBusy || trimByVideos.isPreparing}>Create ZIP</button>
               <p class="hint">
-                Each output GPX is named by its selection order: `1.gpx`, `2.gpx`, and so on.
+                Each output GPX keeps the existing numbered naming pattern: `1.gpx`, `2.gpx`, and so on.
               </p>
             </div>
           </form>
@@ -932,11 +881,38 @@
         </article>
       </section>
     {:else}
-      <section class="tool-card wide cinematic-card">
+      <section class="overview-grid">
+        <article class="info-card">
+          <p class="section-label">Render setup</p>
+          <h2>Configure the export in one place</h2>
+          <p class="muted-text">
+            File selection, output size, tile source, and route styling are grouped so the animation workflow is easier to scan.
+          </p>
+          <ul class="feature-list">
+            <li>The GPX file can still auto-fill duration when timestamps are available.</li>
+            <li>Tile style is optional and falls back to the backend default when left unchanged.</li>
+            <li>Rendering behavior and API endpoints remain exactly the same.</li>
+          </ul>
+        </article>
+
+        <article class="info-card info-card-muted">
+          <p class="section-label">Export summary</p>
+          <div class="tag-list" aria-label="Highlights">
+            {#each activePage.tags as tag}
+              <span>{tag}</span>
+            {/each}
+          </div>
+          <p class="supporting-copy">
+            Need GPX trimming instead? Switch to <a class="inline-link" href={alternatePage.href}>{alternatePage.label}</a>.
+          </p>
+        </article>
+      </section>
+
+      <section class="tool-card wide">
         <header class="section-header">
           <p class="section-label">Route animation</p>
           <h2>Render map animation</h2>
-          <p class="muted-text">Send your GPX to the API to render an MP4 route animation.</p>
+          <p class="muted-text">Upload a GPX file and adjust export settings before rendering an MP4 route animation.</p>
         </header>
 
         <form class="form-grid" on:submit|preventDefault={submitMapAnimation}>
@@ -1125,7 +1101,7 @@
           </div>
           <div class="form-actions">
             <button type="submit" disabled={isBusy}>Render animation</button>
-            <p class="hint">Duration auto-fills from the GPX timestamps when available.</p>
+            <p class="hint">Duration auto-fills from GPX timestamps when available.</p>
           </div>
         </form>
         {#if mapAnimation.error}
@@ -1144,11 +1120,11 @@
   </main>
 
   <footer class="site-footer">
-    <div>
+    <div class="footer-copy">
       <strong>GPX Helper</strong>
-      <p>Copyleft {currentYear}</p>
+      <p>Copyleft {currentYear}. UI simplified for faster scanning and fewer visual distractions.</p>
     </div>
-    <a class="ghost github-link" href="https://github.com/pooriat/GPX_helper" target="_blank" rel="noreferrer">
+    <a class="secondary-link github-link" href="https://github.com/pooriat/GPX_helper" target="_blank" rel="noreferrer">
       <svg aria-hidden="true" viewBox="0 0 16 16" class="github-icon">
         <path
           fill="currentColor"
