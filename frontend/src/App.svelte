@@ -603,14 +603,14 @@
       <p class="brand-mark">GPX Helper</p>
       <p class="brand-caption">Trim tracks, line up footage, and export route animations from one calm workspace.</p>
     </div>
-    <a class="secondary-link github-link" href="https://github.com/pooriat/GPX_helper" target="_blank" rel="noreferrer">
-      <svg aria-hidden="true" viewBox="0 0 16 16" class="github-icon">
+    <a class="secondary-link contributor-link" href="https://www.youtube.com/@EclipseValley" target="_blank" rel="noreferrer">
+      <svg aria-hidden="true" viewBox="0 0 24 24" class="youtube-icon">
         <path
           fill="currentColor"
-          d="M8 0C3.58 0 0 3.58 0 8a8 8 0 005.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.2 1.87.86 2.33.66.07-.52.28-.86.51-1.06-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.01.08-2.1 0 0 .67-.21 2.2.82a7.62 7.62 0 012 0c1.53-1.04 2.2-.82 2.2-.82.44 1.09.16 1.9.08 2.1.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.19 0 .21.15.46.55.38A8 8 0 0016 8c0-4.42-3.58-8-8-8z"
+          d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.4 3.5 12 3.5 12 3.5s-7.4 0-9.4.6A3 3 0 0 0 .5 6.2 31.4 31.4 0 0 0 0 12a31.4 31.4 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c2 .6 9.4.6 9.4.6s7.4 0 9.4-.6a3 3 0 0 0 2.1-2.1A31.4 31.4 0 0 0 24 12a31.4 31.4 0 0 0-.5-5.8ZM9.6 15.6V8.4l6.2 3.6-6.2 3.6Z"
         />
       </svg>
-      <span>View source</span>
+      <span>EclipseValley</span>
     </a>
   </header>
 

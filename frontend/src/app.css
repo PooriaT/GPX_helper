@@ -557,6 +557,12 @@ input[type='file']::file-selector-button {
   height: 18px;
 }
 
+.youtube-icon {
+  width: 20px;
+  height: 20px;
+  color: #ff0033;
+}
+
 @media (max-width: 980px) {
   .app-shell {
     width: min(100vw - 24px, 1100px);
