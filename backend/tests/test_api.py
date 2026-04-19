@@ -466,6 +466,22 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("heart rate data", response.json()["detail"])
 
+    def test_telemetry_video_rejects_invalid_background_color(self) -> None:
+        files = {
+            "gpx_file": ("ride.gpx", _build_gpx_with_telemetry(), "application/gpx+xml"),
+        }
+        data = {
+            "duration_seconds": "20",
+            "fps": "30",
+            "resolution": "640x640",
+            "telemetry_type": "heart_rate",
+            "background_color": "not-a-color",
+        }
+
+        response = self.client.post("/api/v1/gpx/telemetry-video", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
+
     def test_telemetry_video_estimate_success(self) -> None:
         files = {
             "gpx_file": ("ride.gpx", _build_gpx_with_telemetry(), "application/gpx+xml"),

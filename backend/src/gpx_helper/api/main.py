@@ -464,7 +464,10 @@ def render_telemetry_video(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    output_background = parse_background_color(background_color)
+    try:
+        output_background = parse_background_color(background_color)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     has_alpha = output_background[3] < 255
     output_suffix = ".webm" if has_alpha else ".mp4"
     output_media_type = "video/webm" if has_alpha else "video/mp4"
