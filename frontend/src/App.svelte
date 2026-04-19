@@ -53,6 +53,21 @@
     message: ''
   };
 
+  let telemetryVideo = {
+    gpxFile: null,
+    durationSeconds: 4,
+    fps: 30,
+    resolutionWidth: 1024,
+    resolutionHeight: 1024,
+    telemetryType: 'elevation_value',
+    backgroundColor: 'transparent',
+    status: 'idle',
+    error: '',
+    downloadUrl: '',
+    filename: '',
+    message: ''
+  };
+
   const mapTileOptions = [
     { value: '', label: 'Server default' },
     { value: 'osm', label: 'OpenStreetMap (Standard)' },
@@ -66,9 +81,17 @@
     opentopomap: 'https://a.tile.opentopomap.org/12/654/1582.png'
   };
 
+  const telemetryTypeOptions = [
+    { value: 'elevation_value', label: 'Elevation value' },
+    { value: 'speed', label: 'Speed' },
+    { value: 'heart_rate', label: 'Heart rate' },
+    { value: 'elevation_graph', label: 'Elevation graph' }
+  ];
+
   const pages = [
     { id: 'trim', href: '#/trim', label: 'Trim GPX' },
     { id: 'animation', href: '#/animation', label: 'Route animation' },
+    { id: 'telemetry', href: '#/telemetry', label: 'Telemetry video' },
     { id: 'about', href: '#/about', label: 'About' }
   ];
   const defaultPage = pages[0].id;
@@ -78,7 +101,9 @@
   let trimByVideosSelectionId = 0;
   let currentPage = defaultPage;
 
-  $: isBusy = [trimByTime, trimByVideos, mapAnimation].some((state) => state.status === 'loading');
+  $: isBusy = [trimByTime, trimByVideos, mapAnimation, telemetryVideo].some(
+    (state) => state.status === 'loading'
+  );
   $: currentMapTileOption =
     mapTileOptions.find((option) => option.value === mapAnimation.tileType) ?? mapTileOptions[0];
   $: currentMapTilePreview = mapTilePreviewUrls[mapAnimation.tileType] ?? null;
@@ -112,7 +137,7 @@
   });
 
   onDestroy(() => {
-    [trimByTime, trimByVideos, mapAnimation].forEach((state) => {
+    [trimByTime, trimByVideos, mapAnimation, telemetryVideo].forEach((state) => {
       if (state.downloadUrl) {
         URL.revokeObjectURL(state.downloadUrl);
       }
@@ -561,6 +586,83 @@
       };
     } catch (error) {
       mapAnimation = { ...mapAnimation, status: 'error', error: parseError(error) };
+    } finally {
+      finishRequest();
+    }
+  }
+
+  async function submitTelemetryVideo() {
+    if (telemetryVideo.downloadUrl) {
+      URL.revokeObjectURL(telemetryVideo.downloadUrl);
+    }
+    startRequest('Rendering telemetry video...');
+    telemetryVideo = {
+      ...telemetryVideo,
+      status: 'loading',
+      error: '',
+      message: '',
+      downloadUrl: '',
+      filename: ''
+    };
+
+    try {
+      if (!telemetryVideo.gpxFile) {
+        throw new Error('Upload a GPX track to render.');
+      }
+      if (!telemetryVideo.durationSeconds) {
+        const parsedDuration = await parseGpxDuration(telemetryVideo.gpxFile);
+        if (parsedDuration) {
+          telemetryVideo = { ...telemetryVideo, durationSeconds: parsedDuration };
+        }
+      }
+      if (!telemetryVideo.durationSeconds || telemetryVideo.durationSeconds <= 0) {
+        throw new Error('Duration must be greater than zero.');
+      }
+      if (!telemetryVideo.fps || telemetryVideo.fps <= 0) {
+        throw new Error('Frames per second must be greater than zero.');
+      }
+      if (!telemetryVideo.resolutionWidth || !telemetryVideo.resolutionHeight) {
+        throw new Error('Enter a resolution for the export.');
+      }
+      if (telemetryVideo.resolutionWidth <= 0 || telemetryVideo.resolutionHeight <= 0) {
+        throw new Error('Resolution must be greater than zero.');
+      }
+      const resolutionLabel = `${telemetryVideo.resolutionWidth}x${telemetryVideo.resolutionHeight}`;
+      const backgroundColor = telemetryVideo.backgroundColor?.trim() || 'transparent';
+
+      const formData = new FormData();
+      formData.append('gpx_file', telemetryVideo.gpxFile);
+      formData.append('duration_seconds', String(telemetryVideo.durationSeconds));
+      formData.append('fps', String(telemetryVideo.fps));
+      formData.append('resolution', resolutionLabel);
+      formData.append('telemetry_type', telemetryVideo.telemetryType);
+      formData.append('background_color', backgroundColor);
+
+      requestEta('/api/v1/gpx/telemetry-video/estimate', cloneFormData(formData))
+        .then((eta) => {
+          estimatedSeconds = eta;
+        })
+        .catch(() => {
+          estimatedSeconds = null;
+        });
+
+      const fallbackName = deriveMp4Filename(telemetryVideo.gpxFile, 'telemetry.mp4');
+      const { blob, filename } = await requestFile(
+        '/api/v1/gpx/telemetry-video',
+        formData,
+        fallbackName
+      );
+      const downloadUrl = URL.createObjectURL(blob);
+      telemetryVideo = {
+        ...telemetryVideo,
+        status: 'success',
+        downloadUrl,
+        filename,
+        backgroundColor,
+        message: `Rendered ${filename} (${resolutionLabel}, ${telemetryVideo.durationSeconds}s).`
+      };
+    } catch (error) {
+      telemetryVideo = { ...telemetryVideo, status: 'error', error: parseError(error) };
     } finally {
       finishRequest();
     }
@@ -1024,6 +1126,142 @@
         {#if mapAnimation.downloadUrl}
           <a class="download" href={mapAnimation.downloadUrl} download={mapAnimation.filename}>
             Download {mapAnimation.filename}
+          </a>
+        {/if}
+      </section>
+    {:else if currentPage === 'telemetry'}
+      <section class="tool-card wide">
+        <header class="section-header">
+          <h2>Render telemetry video</h2>
+          <p class="muted-text">
+            Export a telemetry-only MP4 from the GPX track for compositing over another clip.
+          </p>
+        </header>
+
+        <form class="form-grid" on:submit|preventDefault={submitTelemetryVideo}>
+          <label>
+            GPX file
+            <input
+              type="file"
+              accept=".gpx,application/gpx+xml"
+              on:change={async (event) => {
+                const file = event.target.files?.[0] ?? null;
+                let durationSeconds = 4;
+                if (file) {
+                  const parsedDuration = await parseGpxDuration(file);
+                  if (parsedDuration) {
+                    durationSeconds = parsedDuration;
+                  }
+                }
+                telemetryVideo = {
+                  ...telemetryVideo,
+                  gpxFile: file,
+                  durationSeconds,
+                  error: '',
+                  message: '',
+                  status: 'idle'
+                };
+              }}
+              required
+            />
+          </label>
+          <div class="animation-inline-fields">
+            <label class="compact-field">
+              Duration (seconds)
+              <input
+                type="number"
+                min="1"
+                step="1"
+                bind:value={telemetryVideo.durationSeconds}
+                placeholder="4"
+                required
+              />
+            </label>
+            <label class="compact-field">
+              Frames per second (fps)
+              <input
+                type="number"
+                min="1"
+                step="1"
+                bind:value={telemetryVideo.fps}
+                placeholder="30"
+                required
+              />
+            </label>
+          </div>
+          <div class="options-row">
+            <div class="options-group">
+              <p class="options-title">Output size</p>
+              <div class="options-stack">
+                <label>
+                  Resolution width (px)
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    bind:value={telemetryVideo.resolutionWidth}
+                    placeholder="1024"
+                    required
+                  />
+                </label>
+                <label>
+                  Resolution height (px)
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    bind:value={telemetryVideo.resolutionHeight}
+                    placeholder="1024"
+                    required
+                  />
+                </label>
+              </div>
+            </div>
+            <div class="options-group">
+              <p class="options-title">Telemetry</p>
+              <div class="options-stack">
+                <label>
+                  Telemetry video type
+                  <select bind:value={telemetryVideo.telemetryType}>
+                    {#each telemetryTypeOptions as option}
+                      <option value={option.value}>{option.label}</option>
+                    {/each}
+                  </select>
+                </label>
+                <label>
+                  Background color
+                  <input
+                    type="text"
+                    bind:value={telemetryVideo.backgroundColor}
+                    placeholder="transparent"
+                    list="background-color-presets"
+                  />
+                  <datalist id="background-color-presets">
+                    <option value="transparent"></option>
+                    <option value="#000000"></option>
+                    <option value="#ffffff"></option>
+                  </datalist>
+                </label>
+                <p class="hint">
+                  Default is <code>transparent</code>. Standard MP4 exports are usually opaque, so
+                  many players will display transparent regions as black.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" disabled={isBusy}>Render telemetry video</button>
+          </div>
+        </form>
+        {#if telemetryVideo.error}
+          <p class="error" role="alert">{telemetryVideo.error}</p>
+        {/if}
+        {#if telemetryVideo.message}
+          <p class="success" aria-live="polite">{telemetryVideo.message}</p>
+        {/if}
+        {#if telemetryVideo.downloadUrl}
+          <a class="download" href={telemetryVideo.downloadUrl} download={telemetryVideo.filename}>
+            Download {telemetryVideo.filename}
           </a>
         {/if}
       </section>

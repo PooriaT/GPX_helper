@@ -17,15 +17,16 @@ describe('App', () => {
       'page'
     );
     expect(within(mainMenu).getByRole('link', { name: /^Route animation$/i })).toBeInTheDocument();
+    expect(within(mainMenu).getByRole('link', { name: /^Telemetry video$/i })).toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { level: 2, name: /Trim GPX by time window/i })
+      screen.getByRole('heading', { level: 2, name: /Trim by time/i })
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/Start time/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/End time/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Trim track/i })).toBeInTheDocument();
 
     expect(
-      screen.getByRole('heading', { level: 2, name: /Split GPX by multiple videos/i })
+      screen.getByRole('heading', { level: 2, name: /Split by videos/i })
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/^Video files$/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Create ZIP/i })).toBeInTheDocument();
@@ -46,7 +47,7 @@ describe('App', () => {
       })
     ).toHaveAttribute('aria-current', 'page');
     expect(
-      screen.getByRole('heading', { level: 2, name: /Render map animation/i })
+      screen.getByRole('heading', { level: 2, name: /Render animation/i })
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/Duration \(seconds\)/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Frames per second/i)).toBeInTheDocument();
@@ -54,7 +55,7 @@ describe('App', () => {
     expect(screen.getByLabelText(/Resolution height/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Tile style/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Render animation/i })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { level: 2, name: /Trim GPX by time window/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 2, name: /Trim by time/i })).not.toBeInTheDocument();
   });
 
   it('shows the selected marker color in the route animation style controls', async () => {
@@ -70,5 +71,56 @@ describe('App', () => {
 
     expect(screen.getByText('#ff0000')).toBeInTheDocument();
     expect(markerColorInput).toHaveValue('#ff0000');
+  });
+
+  it('renders the telemetry video page from the hash route', async () => {
+    window.location.hash = '#/telemetry';
+    render(App);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Telemetry video');
+    });
+    expect(
+      within(screen.getByRole('navigation', { name: /Main menu/i })).getByRole('link', {
+        name: /^Telemetry video$/i
+      })
+    ).toHaveAttribute('aria-current', 'page');
+    expect(
+      screen.getByRole('heading', { level: 2, name: /Render telemetry video/i })
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/Telemetry video type/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Background color/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Render telemetry video/i })).toBeInTheDocument();
+  });
+
+  it('fills the telemetry duration from the uploaded gpx timestamps on the frontend', async () => {
+    window.location.hash = '#/telemetry';
+    render(App);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/^GPX file$/i)).toBeInTheDocument();
+    });
+
+    const fileInput = screen.getByLabelText(/^GPX file$/i);
+    const durationInput = screen.getByLabelText(/Duration \(seconds\)/i);
+    const gpxFile = new File(
+      [
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1">
+          <trk><trkseg>
+            <trkpt lat="49.0" lon="-123.0"><time>2024-01-01T00:00:00Z</time></trkpt>
+            <trkpt lat="49.1" lon="-123.1"><time>2024-01-01T00:00:10Z</time></trkpt>
+          </trkseg></trk>
+        </gpx>`
+      ],
+      'track.gpx',
+      { type: 'application/gpx+xml' }
+    );
+
+    await fireEvent.change(fileInput, { target: { files: [gpxFile] } });
+
+    await waitFor(() => {
+      expect(durationInput).toHaveValue(10);
+    });
   });
 });

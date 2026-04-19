@@ -25,6 +25,13 @@ from gpx_helper.map_animator import (
     prepare_animation_series,
     resolve_tile_provider,
 )
+from gpx_helper.telemetry_animator import (
+    create_telemetry_animation,
+    ensure_telemetry_type_supported,
+    estimate_telemetry_seconds,
+    load_gpx_telemetry,
+    resolve_telemetry_type,
+)
 
 API_VERSION = "v1"
 DEFAULT_ALLOWED_ORIGINS = (
@@ -150,6 +157,8 @@ def capabilities() -> JSONResponse:
                 "POST /api/v1/gpx/trim-by-videos",
                 "POST /api/v1/gpx/map-animate/estimate",
                 "POST /api/v1/gpx/map-animate",
+                "POST /api/v1/gpx/telemetry-video/estimate",
+                "POST /api/v1/gpx/telemetry-video",
             ],
         }
     )
@@ -384,4 +393,98 @@ def animate_gpx_route(
         upload_name = os.path.basename(gpx_file.filename or "")
         stem = os.path.splitext(upload_name)[0] if upload_name else "route"
         output_name = f"{stem}.mp4"
+        return _stream_payload(video_output.read(), output_name, "video/mp4")
+
+
+@app.post("/api/v1/gpx/telemetry-video/estimate")
+def estimate_telemetry_video(
+    gpx_file: UploadFile | str | None = File(None),
+    duration_seconds: float = Form(...),
+    fps: float = Form(DEFAULT_FPS),
+    resolution: str = Form(...),
+    telemetry_type: str = Form(...),
+) -> JSONResponse:
+    gpx_file = _validate_upload(gpx_file, "gpx_file")
+
+    if duration_seconds <= 0:
+        raise HTTPException(status_code=400, detail="duration_seconds must be positive")
+    if fps <= 0:
+        raise HTTPException(status_code=400, detail="fps must be positive")
+
+    try:
+        width_px, height_px = parse_resolution(resolution)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if width_px <= 0 or height_px <= 0:
+        raise HTTPException(status_code=400, detail="resolution must be positive")
+    try:
+        resolved_type = resolve_telemetry_type(telemetry_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    with tempfile.NamedTemporaryFile(suffix=".gpx") as gpx_input:
+        _write_upload_to_file(gpx_file, gpx_input, "GPX")
+        try:
+            telemetry_points = load_gpx_telemetry(gpx_input.name)
+            ensure_telemetry_type_supported(telemetry_points, resolved_type)
+            estimated_seconds = estimate_telemetry_seconds(
+                duration_seconds, width_px, height_px, fps=fps
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return JSONResponse({"estimated_seconds": round(float(estimated_seconds), 2)})
+
+
+@app.post("/api/v1/gpx/telemetry-video")
+def render_telemetry_video(
+    gpx_file: UploadFile | str | None = File(None),
+    duration_seconds: float = Form(...),
+    fps: float = Form(DEFAULT_FPS),
+    resolution: str = Form(...),
+    telemetry_type: str = Form(...),
+    background_color: str = Form("transparent"),
+) -> StreamingResponse:
+    gpx_file = _validate_upload(gpx_file, "gpx_file")
+
+    if duration_seconds <= 0:
+        raise HTTPException(status_code=400, detail="duration_seconds must be positive")
+    if fps <= 0:
+        raise HTTPException(status_code=400, detail="fps must be positive")
+
+    try:
+        width_px, height_px = parse_resolution(resolution)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if width_px <= 0 or height_px <= 0:
+        raise HTTPException(status_code=400, detail="resolution must be positive")
+    try:
+        resolved_type = resolve_telemetry_type(telemetry_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    with tempfile.NamedTemporaryFile(suffix=".gpx") as gpx_input, tempfile.NamedTemporaryFile(
+        suffix=".mp4"
+    ) as video_output:
+        _write_upload_to_file(gpx_file, gpx_input, "GPX")
+        try:
+            telemetry_points = load_gpx_telemetry(gpx_input.name)
+            ensure_telemetry_type_supported(telemetry_points, resolved_type)
+            create_telemetry_animation(
+                telemetry_points,
+                duration_seconds=duration_seconds,
+                fps=fps,
+                width_px=width_px,
+                height_px=height_px,
+                telemetry_type=resolved_type,
+                background_color=background_color,
+                output_path=video_output.name,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        video_output.seek(0)
+        upload_name = os.path.basename(gpx_file.filename or "")
+        stem = os.path.splitext(upload_name)[0] if upload_name else "telemetry"
+        output_name = f"{stem}-{resolved_type}.mp4"
         return _stream_payload(video_output.read(), output_name, "video/mp4")
