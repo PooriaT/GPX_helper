@@ -68,7 +68,8 @@
 
   const pages = [
     { id: 'trim', href: '#/trim', label: 'Trim GPX' },
-    { id: 'animation', href: '#/animation', label: 'Route animation' }
+    { id: 'animation', href: '#/animation', label: 'Route animation' },
+    { id: 'about', href: '#/about', label: 'About' }
   ];
   const defaultPage = pages[0].id;
 
@@ -823,7 +824,7 @@
           {/if}
         </article>
       </section>
-    {:else}
+    {:else if currentPage === 'animation'}
       <section class="tool-card wide">
         <header class="section-header">
           <h2>Render animation</h2>
@@ -1025,6 +1026,39 @@
             Download {mapAnimation.filename}
           </a>
         {/if}
+      </section>
+    {:else}
+      <section class="about-grid">
+        <article class="tool-card about-card">
+          <header class="section-header">
+            <h2>What this app does</h2>
+          </header>
+          <p class="muted-text">
+            GPX Helper trims GPX tracks and renders route videos from the same browser UI.
+          </p>
+        </article>
+
+        <article class="tool-card about-card">
+          <header class="section-header">
+            <h2>Trim GPX</h2>
+          </header>
+          <ul class="about-list">
+            <li><strong>Trim by time:</strong> export one GPX file from a start and end time.</li>
+            <li><strong>Split by videos:</strong> create one GPX segment per video and download them as a ZIP.</li>
+            <li><strong>Optional video metadata:</strong> can fill clip times automatically when available.</li>
+          </ul>
+        </article>
+
+        <article class="tool-card about-card">
+          <header class="section-header">
+            <h2>Route animation</h2>
+          </header>
+          <ul class="about-list">
+            <li>Render the GPX route as an MP4.</li>
+            <li>Adjust duration, frame rate, size, tiles, and route styling.</li>
+            <li>Use it when you need a clean route preview or shareable map video.</li>
+          </ul>
+        </article>
       </section>
     {/if}
   </main>
