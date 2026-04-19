@@ -27,6 +27,29 @@ def _build_gpx() -> bytes:
     ).encode("utf-8")
 
 
+def _build_gpx_with_telemetry() -> bytes:
+    return (
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+        "<gpx version=\"1.1\" creator=\"test\" "
+        "xmlns=\"http://www.topografix.com/GPX/1/1\" "
+        "xmlns:gpxtpx=\"http://www.garmin.com/xmlschemas/TrackPointExtension/v1\">"
+        "<trk><trkseg>"
+        "<trkpt lat=\"49.0\" lon=\"-123.0\">"
+        "<ele>10</ele><time>2024-01-01T00:00:00Z</time>"
+        "<extensions><gpxtpx:TrackPointExtension><gpxtpx:hr>120</gpxtpx:hr></gpxtpx:TrackPointExtension></extensions>"
+        "</trkpt>"
+        "<trkpt lat=\"49.0002\" lon=\"-123.0002\">"
+        "<ele>20</ele><time>2024-01-01T00:00:10Z</time>"
+        "<extensions><gpxtpx:TrackPointExtension><gpxtpx:hr>140</gpxtpx:hr></gpxtpx:TrackPointExtension></extensions>"
+        "</trkpt>"
+        "<trkpt lat=\"49.0004\" lon=\"-123.0004\">"
+        "<ele>30</ele><time>2024-01-01T00:00:20Z</time>"
+        "<extensions><gpxtpx:TrackPointExtension><gpxtpx:hr>160</gpxtpx:hr></gpxtpx:TrackPointExtension></extensions>"
+        "</trkpt>"
+        "</trkseg></trk></gpx>"
+    ).encode("utf-8")
+
+
 def _count_trkpts(payload: bytes) -> int:
     root = ET.fromstring(payload)
     return len(root.findall(".//{%s}trkpt" % GPX_NS))
@@ -54,6 +77,8 @@ class ApiTests(unittest.TestCase):
         self.assertIn("POST /api/v1/gpx/trim-by-videos", payload["endpoints"])
         self.assertIn("POST /api/v1/gpx/map-animate/estimate", payload["endpoints"])
         self.assertIn("POST /api/v1/gpx/map-animate", payload["endpoints"])
+        self.assertIn("POST /api/v1/gpx/telemetry-video/estimate", payload["endpoints"])
+        self.assertIn("POST /api/v1/gpx/telemetry-video", payload["endpoints"])
 
     def test_trim_by_time_success(self) -> None:
         files = {
@@ -289,6 +314,7 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("tile_type", response.json()["detail"])
+
     def test_map_animation_eta_success(self) -> None:
         files = {
             "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
@@ -352,6 +378,78 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("tile_type", response.json()["detail"])
+
+    def test_telemetry_video_success(self) -> None:
+        files = {
+            "gpx_file": ("ride.gpx", _build_gpx_with_telemetry(), "application/gpx+xml"),
+        }
+        data = {
+            "duration_seconds": "20",
+            "fps": "30",
+            "resolution": "640x640",
+            "telemetry_type": "heart_rate",
+            "background_color": "transparent",
+        }
+        fake_video = b"telemetry-mp4"
+        captured = {}
+
+        def _fake_telemetry_animation(points, **kwargs):
+            captured["point_count"] = len(points)
+            captured.update(kwargs)
+            with open(kwargs["output_path"], "wb") as f:
+                f.write(fake_video)
+
+        with mock.patch(
+            "gpx_helper.api.main.create_telemetry_animation",
+            side_effect=_fake_telemetry_animation,
+        ):
+            response = self.client.post("/api/v1/gpx/telemetry-video", files=files, data=data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["content-type"], "video/mp4")
+        self.assertEqual(response.content, fake_video)
+        self.assertIn(
+            "attachment; filename=ride-heart_rate.mp4",
+            response.headers["content-disposition"],
+        )
+        self.assertEqual(captured["point_count"], 3)
+        self.assertEqual(captured["telemetry_type"], "heart_rate")
+        self.assertEqual(captured["background_color"], "transparent")
+        self.assertEqual(captured["width_px"], 640)
+        self.assertEqual(captured["height_px"], 640)
+
+    def test_telemetry_video_rejects_missing_heart_rate_data(self) -> None:
+        files = {
+            "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
+        }
+        data = {
+            "duration_seconds": "20",
+            "fps": "30",
+            "resolution": "640x640",
+            "telemetry_type": "heart_rate",
+            "background_color": "transparent",
+        }
+
+        response = self.client.post("/api/v1/gpx/telemetry-video", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("heart rate data", response.json()["detail"])
+
+    def test_telemetry_video_estimate_success(self) -> None:
+        files = {
+            "gpx_file": ("ride.gpx", _build_gpx_with_telemetry(), "application/gpx+xml"),
+        }
+        data = {
+            "duration_seconds": "20",
+            "fps": "30",
+            "resolution": "640x640",
+            "telemetry_type": "elevation_graph",
+        }
+
+        response = self.client.post("/api/v1/gpx/telemetry-video/estimate", files=files, data=data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.json()["estimated_seconds"], float)
 
 
 if __name__ == "__main__":
