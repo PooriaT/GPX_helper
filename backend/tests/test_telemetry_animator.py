@@ -3,7 +3,9 @@ from __future__ import annotations
 import os
 import tempfile
 import unittest
+from unittest import mock
 
+import gpx_helper.telemetry_animator as telemetry_animator
 from gpx_helper.telemetry_animator import (
     ensure_telemetry_type_supported,
     load_gpx_telemetry,
@@ -75,6 +77,21 @@ class TelemetryAnimatorTests(unittest.TestCase):
     def test_parse_background_color_supports_transparent_keyword(self) -> None:
         self.assertEqual(parse_background_color("transparent"), (0, 0, 0, 0))
         self.assertEqual(parse_background_color("#112233"), (17, 34, 51, 255))
+
+    def test_open_ffmpeg_writer_uses_alpha_capable_encoding(self) -> None:
+        with mock.patch("subprocess.Popen") as mock_popen:
+            telemetry_animator._open_ffmpeg_writer(
+                "/tmp/out.webm",
+                width_px=640,
+                height_px=360,
+                fps=30.0,
+                use_alpha=True,
+            )
+
+        cmd = mock_popen.call_args.args[0]
+        self.assertIn("libvpx-vp9", cmd)
+        self.assertIn("yuva420p", cmd)
+        self.assertNotIn("libx264", cmd)
 
 
 if __name__ == "__main__":
