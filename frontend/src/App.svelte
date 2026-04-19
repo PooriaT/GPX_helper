@@ -67,32 +67,13 @@
   };
 
   const pages = [
-    {
-      id: 'trim',
-      href: '#/trim',
-      label: 'Trim GPX',
-      kicker: 'Trim workspace',
-      title: 'Trim GPX tracks with a clear, two-step workflow.',
-      description:
-        'Choose a manual time window or generate sequential trims from multiple videos. Both options keep the same input and export logic, but present it in a simpler layout.',
-      tags: ['Manual time range', 'Video-based split', 'ZIP-ready exports']
-    },
-    {
-      id: 'animation',
-      href: '#/animation',
-      label: 'Route animation',
-      kicker: 'Animation workspace',
-      title: 'Render route animations from a dedicated export screen.',
-      description:
-        'Adjust duration, output size, tile style, and route styling in one focused screen without mixing animation settings into the trim workflow.',
-      tags: ['MP4 export', 'Tile styles', 'Route styling']
-    }
+    { id: 'trim', href: '#/trim', label: 'Trim GPX' },
+    { id: 'animation', href: '#/animation', label: 'Route animation' }
   ];
   const defaultPage = pages[0].id;
 
   let activeRequestLabel = '';
   let estimatedSeconds = null;
-  const currentYear = new Date().getFullYear();
   let trimByVideosSelectionId = 0;
   let currentPage = defaultPage;
 
@@ -101,7 +82,6 @@
     mapTileOptions.find((option) => option.value === mapAnimation.tileType) ?? mapTileOptions[0];
   $: currentMapTilePreview = mapTilePreviewUrls[mapAnimation.tileType] ?? null;
   $: activePage = pages.find((page) => page.id === currentPage) ?? pages[0];
-  $: alternatePage = pages.find((page) => page.id !== currentPage) ?? pages[0];
 
   function normalizeHash(hash) {
     const route = hash.replace(/^#\/?/, '').split(/[?#]/)[0].toLowerCase();
@@ -601,26 +581,31 @@
   <header class="app-header">
     <div class="brand-block">
       <p class="brand-mark">GPX Helper</p>
-      <p class="brand-caption">Trim tracks, line up footage, and export route animations from one calm workspace.</p>
     </div>
-    <a class="secondary-link contributor-link" href="https://www.youtube.com/@EclipseValley" target="_blank" rel="noreferrer">
-      <svg aria-hidden="true" viewBox="0 0 24 24" class="youtube-icon">
-        <path
-          fill="currentColor"
-          d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.4 3.5 12 3.5 12 3.5s-7.4 0-9.4.6A3 3 0 0 0 .5 6.2 31.4 31.4 0 0 0 0 12a31.4 31.4 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c2 .6 9.4.6 9.4.6s7.4 0 9.4-.6a3 3 0 0 0 2.1-2.1A31.4 31.4 0 0 0 24 12a31.4 31.4 0 0 0-.5-5.8ZM9.6 15.6V8.4l6.2 3.6-6.2 3.6Z"
-        />
-      </svg>
-      <span>EclipseValley</span>
-    </a>
+    <div class="header-links">
+      <a class="secondary-link contributor-link" href="https://www.youtube.com/@EclipseValley" target="_blank" rel="noreferrer">
+        <svg aria-hidden="true" viewBox="0 0 24 24" class="youtube-icon">
+          <path
+            fill="currentColor"
+            d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.4 3.5 12 3.5 12 3.5s-7.4 0-9.4.6A3 3 0 0 0 .5 6.2 31.4 31.4 0 0 0 0 12a31.4 31.4 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c2 .6 9.4.6 9.4.6s7.4 0 9.4-.6a3 3 0 0 0 2.1-2.1A31.4 31.4 0 0 0 24 12a31.4 31.4 0 0 0-.5-5.8ZM9.6 15.6V8.4l6.2 3.6-6.2 3.6Z"
+          />
+        </svg>
+        <span>EclipseValley</span>
+      </a>
+      <a class="secondary-link github-link" href="https://github.com/pooriat/GPX_helper" target="_blank" rel="noreferrer">
+        <svg aria-hidden="true" viewBox="0 0 16 16" class="github-icon">
+          <path
+            fill="currentColor"
+            d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.2 1.87.86 2.33.66.07-.52.28-.86.51-1.06-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.01.08-2.1 0 0 .67-.21 2.2.82a7.62 7.62 0 0 1 2 0c1.53-1.04 2.2-.82 2.2-.82.44 1.09.16 1.9.08 2.1.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.19 0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8z"
+          />
+        </svg>
+        <span>GitHub</span>
+      </a>
+    </div>
   </header>
 
   <section class="workspace-bar">
-    <div class="workspace-copy">
-      <p class="section-label">{activePage.kicker}</p>
-      <h1>{activePage.label}</h1>
-      <p class="lede">{activePage.title}</p>
-      <p class="muted-text">{activePage.description}</p>
-    </div>
+    <h1>{activePage.label}</h1>
     <nav class="workspace-tabs" aria-label="Main menu">
       {#each pages as page}
         <a
@@ -643,7 +628,7 @@
           {#if estimatedSeconds}
             Estimated wait: ~{Math.max(1, Math.round(estimatedSeconds))} seconds.
           {:else}
-            Preparing your request. Buttons stay disabled until it finishes.
+            Preparing request.
           {/if}
         </p>
       </div>
@@ -652,39 +637,10 @@
 
   <main class="content">
     {#if currentPage === 'trim'}
-      <section class="overview-grid">
-        <article class="info-card">
-          <p class="section-label">Choose a workflow</p>
-          <h2>Two ways to trim the same GPX track</h2>
-          <p class="muted-text">
-            Use the simplest option that matches your source material. Both workflows keep the same backend behavior.
-          </p>
-          <ul class="feature-list">
-            <li>Trim by time window when you already know the exact start and end timestamps.</li>
-            <li>Split by multiple videos when each clip should become its own numbered GPX segment.</li>
-            <li>Video metadata is still read in the browser to prefill times before anything is sent to the API.</li>
-          </ul>
-        </article>
-
-        <article class="info-card info-card-muted">
-          <p class="section-label">This page includes</p>
-          <div class="tag-list" aria-label="Highlights">
-            {#each activePage.tags as tag}
-              <span>{tag}</span>
-            {/each}
-          </div>
-          <p class="supporting-copy">
-            Need route video output instead? Switch to <a class="inline-link" href={alternatePage.href}>{alternatePage.label}</a>.
-          </p>
-        </article>
-      </section>
-
       <section class="workflow-grid">
         <article class="tool-card workflow-card">
           <header class="section-header">
-            <p class="section-label">Trim by timestamps</p>
-            <h2>Trim GPX by time window</h2>
-            <p class="muted-text">Upload a GPX file, set a start and end time, and export a single trimmed track.</p>
+            <h2>Trim by time</h2>
           </header>
 
           <form class="form-grid" on:submit|preventDefault={submitTrimByTime}>
@@ -735,9 +691,6 @@
             </label>
             <div class="form-actions">
               <button type="submit" disabled={isBusy}>Trim track</button>
-              <p class="hint">
-                Optional video metadata can fill the time range for you. Submitted timestamps are converted to UTC before the request is sent.
-              </p>
             </div>
           </form>
           {#if trimByTime.error}
@@ -755,11 +708,7 @@
 
         <article class="tool-card workflow-card workflow-card-emphasis">
           <header class="section-header">
-            <p class="section-label">Trim by video batch</p>
-            <h2>Split GPX by multiple videos</h2>
-            <p class="muted-text">
-              Upload one GPX file and multiple videos to generate one numbered GPX segment per clip in a ZIP file.
-            </p>
+            <h2>Split by videos</h2>
           </header>
 
           <form class="form-grid" on:submit|preventDefault={submitTrimByVideos}>
@@ -837,12 +786,9 @@
               />
             </label>
             <div class="options-group">
-              <p class="options-title">Detected clips</p>
+              <p class="options-title">Clips</p>
               {#if trimByVideos.clips.length}
-                <p class="hint">
-                  {trimByVideos.clips.length} clips detected with a combined duration of
-                  {` ${formatDurationLabel(trimByVideos.totalDurationSeconds)}.`}
-                </p>
+                <p class="hint">{trimByVideos.clips.length} clips · {formatDurationLabel(trimByVideos.totalDurationSeconds)}</p>
                 <div class="clip-list" aria-live="polite">
                   {#each trimByVideos.clips as clip, index (clip.id)}
                     <div class="clip-item">
@@ -855,16 +801,13 @@
                   {/each}
                 </div>
               {:else if trimByVideos.isPreparing}
-                <p class="hint">Reading video durations and embedded timestamps from the selected files.</p>
+                <p class="hint">Reading video metadata.</p>
               {:else}
-                <p class="hint">Select videos to calculate durations and embedded timestamps before creating the ZIP.</p>
+                <p class="hint">No videos selected.</p>
               {/if}
             </div>
             <div class="form-actions">
               <button type="submit" disabled={isBusy || trimByVideos.isPreparing}>Create ZIP</button>
-              <p class="hint">
-                Each output GPX keeps the existing numbered naming pattern: `1.gpx`, `2.gpx`, and so on.
-              </p>
             </div>
           </form>
           {#if trimByVideos.error}
@@ -881,38 +824,9 @@
         </article>
       </section>
     {:else}
-      <section class="overview-grid">
-        <article class="info-card">
-          <p class="section-label">Render setup</p>
-          <h2>Configure the export in one place</h2>
-          <p class="muted-text">
-            File selection, output size, tile source, and route styling are grouped so the animation workflow is easier to scan.
-          </p>
-          <ul class="feature-list">
-            <li>The GPX file can still auto-fill duration when timestamps are available.</li>
-            <li>Tile style is optional and falls back to the backend default when left unchanged.</li>
-            <li>Rendering behavior and API endpoints remain exactly the same.</li>
-          </ul>
-        </article>
-
-        <article class="info-card info-card-muted">
-          <p class="section-label">Export summary</p>
-          <div class="tag-list" aria-label="Highlights">
-            {#each activePage.tags as tag}
-              <span>{tag}</span>
-            {/each}
-          </div>
-          <p class="supporting-copy">
-            Need GPX trimming instead? Switch to <a class="inline-link" href={alternatePage.href}>{alternatePage.label}</a>.
-          </p>
-        </article>
-      </section>
-
       <section class="tool-card wide">
         <header class="section-header">
-          <p class="section-label">Route animation</p>
-          <h2>Render map animation</h2>
-          <p class="muted-text">Upload a GPX file and adjust export settings before rendering an MP4 route animation.</p>
+          <h2>Render animation</h2>
         </header>
 
         <form class="form-grid" on:submit|preventDefault={submitMapAnimation}>
@@ -999,10 +913,7 @@
                     />
                     <figcaption>{currentMapTileOption.label}</figcaption>
                   {:else}
-                    <figcaption>
-                      {currentMapTileOption.label} uses the backend tile configuration, so no fixed preview is
-                      shown here.
-                    </figcaption>
+                    <figcaption>{currentMapTileOption.label}. No preview available.</figcaption>
                   {/if}
                 </figure>
                 <label>
@@ -1101,7 +1012,6 @@
           </div>
           <div class="form-actions">
             <button type="submit" disabled={isBusy}>Render animation</button>
-            <p class="hint">Duration auto-fills from GPX timestamps when available.</p>
           </div>
         </form>
         {#if mapAnimation.error}
@@ -1118,20 +1028,4 @@
       </section>
     {/if}
   </main>
-
-  <footer class="site-footer">
-    <div class="footer-copy">
-      <strong>GPX Helper</strong>
-      <p>Copyleft {currentYear}. UI simplified for faster scanning and fewer visual distractions.</p>
-    </div>
-    <a class="secondary-link github-link" href="https://github.com/pooriat/GPX_helper" target="_blank" rel="noreferrer">
-      <svg aria-hidden="true" viewBox="0 0 16 16" class="github-icon">
-        <path
-          fill="currentColor"
-          d="M8 0C3.58 0 0 3.58 0 8a8 8 0 005.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.2 1.87.86 2.33.66.07-.52.28-.86.51-1.06-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.01.08-2.1 0 0 .67-.21 2.2.82a7.62 7.62 0 012 0c1.53-1.04 2.2-.82 2.2-.82.44 1.09.16 1.9.08 2.1.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.19 0 .21.15.46.55.38A8 8 0 0016 8c0-4.42-3.58-8-8-8z"
-        />
-      </svg>
-      <span>GitHub</span>
-    </a>
-  </footer>
 </div>

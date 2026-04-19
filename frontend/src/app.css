@@ -4,10 +4,10 @@
   font-family: 'Manrope', 'Segoe UI', system-ui, sans-serif;
   line-height: 1.5;
   color-scheme: light;
-  --bg: #f3f5f8;
+  --bg: #f5f7fa;
   --surface: #ffffff;
   --surface-soft: #f8fafc;
-  --surface-muted: #f1f5f9;
+  --surface-muted: #f2f5f8;
   --text: #17212b;
   --muted: #5a6777;
   --border: #dbe3ec;
@@ -17,8 +17,7 @@
   --accent-text: #1d4ed8;
   --success: #0f766e;
   --danger: #b42318;
-  --shadow-sm: 0 8px 24px rgba(15, 23, 42, 0.04);
-  --shadow-md: 0 18px 48px rgba(15, 23, 42, 0.06);
+  --shadow-sm: 0 8px 20px rgba(15, 23, 42, 0.035);
 }
 
 * {
@@ -34,9 +33,7 @@ body,
 body {
   margin: 0;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at top left, rgba(37, 99, 235, 0.06), transparent 26%),
-    linear-gradient(180deg, #f8fafc 0%, var(--bg) 24%, var(--bg) 100%);
+  background: linear-gradient(180deg, #fbfcfd 0%, var(--bg) 100%);
   color: var(--text);
 }
 
@@ -54,47 +51,39 @@ select {
 .app-shell {
   width: min(1100px, calc(100vw - 32px));
   margin: 0 auto;
-  padding: 28px 0 56px;
+  padding: 24px 0 40px;
   display: grid;
-  gap: 20px;
+  gap: 16px;
 }
 
 .app-header,
 .workspace-bar,
 .loading-banner,
-.info-card,
-.tool-card,
-.site-footer {
+.tool-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: 16px;
   box-shadow: var(--shadow-sm);
 }
 
-.app-header,
-.site-footer {
+.app-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 18px 20px;
+  gap: 12px;
+  padding: 14px 16px;
 }
 
 .brand-block,
-.workspace-copy,
 .section-header,
-.tool-card,
-.info-card,
-.footer-copy {
+.tool-card {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .brand-mark,
 .section-header h2,
-.workspace-copy h1,
-.info-card h2,
-.site-footer strong {
+.workspace-bar h1 {
   margin: 0;
   font-weight: 800;
   letter-spacing: -0.03em;
@@ -104,14 +93,17 @@ select {
   font-size: 1rem;
 }
 
-.brand-caption,
 .muted-text,
 .hint,
-.supporting-copy,
-.loading-copy p,
-.site-footer p {
+.loading-copy p {
   margin: 0;
   color: var(--muted);
+}
+
+.header-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .secondary-link,
@@ -163,14 +155,18 @@ button:disabled {
 }
 
 .workspace-bar {
-  padding: 24px;
+  padding: 18px 20px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 18px;
-  align-items: end;
+  gap: 12px;
+  align-items: center;
 }
 
-.section-label,
+.workspace-bar h1 {
+  font-size: clamp(1.7rem, 3vw, 2.2rem);
+  line-height: 1.05;
+}
+
 .options-title {
   margin: 0;
   font-size: 0.75rem;
@@ -180,31 +176,20 @@ button:disabled {
   color: #6b7a8d;
 }
 
-.workspace-copy h1 {
-  font-size: clamp(2rem, 4vw, 2.75rem);
-  line-height: 1.05;
-}
-
-.lede {
-  margin: 0;
-  font-size: 1.05rem;
-  color: var(--text);
-}
-
 .workspace-tabs {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px;
-  border-radius: 14px;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 12px;
   background: var(--surface-muted);
   border: 1px solid var(--border);
 }
 
 .workspace-tabs a {
-  min-height: 42px;
-  padding: 0 14px;
-  border-radius: 10px;
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 8px;
   color: var(--muted);
   font-weight: 700;
   transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
@@ -252,87 +237,35 @@ button:disabled {
 
 .content {
   display: grid;
-  gap: 20px;
+  gap: 16px;
 }
 
-.overview-grid,
 .workflow-grid {
   display: grid;
-  gap: 20px;
-}
-
-.overview-grid {
-  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.85fr);
-}
-
-.workflow-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
   align-items: start;
 }
 
-.info-card,
-.tool-card {
-  padding: 24px;
-}
-
-.info-card h2,
-.section-header h2 {
-  font-size: clamp(1.45rem, 3vw, 2rem);
-  line-height: 1.12;
-}
-
-.info-card-muted {
-  background: var(--surface-soft);
-}
-
-.tag-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.tag-list span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 34px;
-  padding: 7px 12px;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  border: 1px solid #dbeafe;
-  color: var(--accent-text);
-  font-size: 0.92rem;
-  font-weight: 700;
-}
-
-.feature-list {
-  margin: 0;
-  padding-left: 1.1rem;
-  color: var(--muted);
-}
-
-.feature-list li + li {
-  margin-top: 0.55rem;
-}
-
-.inline-link {
-  color: var(--accent-text);
-  font-weight: 700;
-}
-
-.inline-link:hover {
-  text-decoration: underline;
-}
-
 .workflow-card {
-  gap: 18px;
+  gap: 16px;
 }
 
 .workflow-card-emphasis {
-  background: linear-gradient(180deg, #fcfdff 0%, #f6f9ff 100%);
+  background: #fcfdff;
 }
 
 .wide {
   width: 100%;
+}
+
+.tool-card {
+  padding: 20px;
+}
+
+.section-header h2 {
+  font-size: clamp(1.35rem, 2.5vw, 1.75rem);
+  line-height: 1.1;
 }
 
 .form-grid,
@@ -548,10 +481,6 @@ input[type='file']::file-selector-button {
   color: var(--danger);
 }
 
-.site-footer strong {
-  font-size: 1rem;
-}
-
 .github-icon {
   width: 18px;
   height: 18px;
@@ -570,7 +499,6 @@ input[type='file']::file-selector-button {
   }
 
   .workspace-bar,
-  .overview-grid,
   .workflow-grid,
   .options-row {
     grid-template-columns: 1fr;
@@ -585,20 +513,17 @@ input[type='file']::file-selector-button {
   .app-shell {
     width: min(100vw - 18px, 1100px);
     gap: 16px;
-    padding-bottom: 40px;
+    padding-bottom: 28px;
   }
 
   .app-header,
   .workspace-bar,
-  .info-card,
-  .tool-card,
-  .site-footer {
+  .tool-card {
     padding: 18px;
     border-radius: 18px;
   }
 
-  .app-header,
-  .site-footer {
+  .app-header {
     align-items: flex-start;
     flex-direction: column;
   }
