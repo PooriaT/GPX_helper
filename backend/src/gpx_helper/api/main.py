@@ -30,6 +30,7 @@ from gpx_helper.telemetry_animator import (
     ensure_telemetry_type_supported,
     estimate_telemetry_seconds,
     load_gpx_telemetry,
+    parse_background_color,
     resolve_telemetry_type,
 )
 
@@ -463,8 +464,16 @@ def render_telemetry_video(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    try:
+        output_background = parse_background_color(background_color)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    has_alpha = output_background[3] < 255
+    output_suffix = ".webm" if has_alpha else ".mp4"
+    output_media_type = "video/webm" if has_alpha else "video/mp4"
+
     with tempfile.NamedTemporaryFile(suffix=".gpx") as gpx_input, tempfile.NamedTemporaryFile(
-        suffix=".mp4"
+        suffix=output_suffix
     ) as video_output:
         _write_upload_to_file(gpx_file, gpx_input, "GPX")
         try:
@@ -486,5 +495,5 @@ def render_telemetry_video(
         video_output.seek(0)
         upload_name = os.path.basename(gpx_file.filename or "")
         stem = os.path.splitext(upload_name)[0] if upload_name else "telemetry"
-        output_name = f"{stem}-{resolved_type}.mp4"
-        return _stream_payload(video_output.read(), output_name, "video/mp4")
+        output_name = f"{stem}-{resolved_type}{output_suffix}"
+        return _stream_payload(video_output.read(), output_name, output_media_type)

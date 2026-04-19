@@ -466,10 +466,11 @@ def _open_ffmpeg_writer(
     width_px: int,
     height_px: int,
     fps: float,
+    use_alpha: bool,
 ) -> "subprocess.Popen[bytes]":
     import subprocess
 
-    cmd = [
+    cmd: list[str] = [
         "ffmpeg",
         "-y",
         "-f",
@@ -485,16 +486,36 @@ def _open_ffmpeg_writer(
         "-i",
         "-",
         "-an",
-        "-vcodec",
-        "libx264",
-        "-preset",
-        "veryfast",
-        "-crf",
-        "23",
-        "-pix_fmt",
-        "yuv420p",
-        output_path,
     ]
+    if use_alpha:
+        cmd.extend(
+            [
+                "-vcodec",
+                "libvpx-vp9",
+                "-b:v",
+                "0",
+                "-crf",
+                "30",
+                "-auto-alt-ref",
+                "0",
+                "-pix_fmt",
+                "yuva420p",
+            ]
+        )
+    else:
+        cmd.extend(
+            [
+                "-vcodec",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "23",
+                "-pix_fmt",
+                "yuv420p",
+            ]
+        )
+    cmd.append(output_path)
     return subprocess.Popen(cmd, stdin=subprocess.PIPE)
 
 
@@ -513,6 +534,7 @@ def create_telemetry_animation(
     ensure_telemetry_type_supported(points, resolved_type)
     source_duration_seconds = telemetry_duration_seconds(points)
     background_rgba = parse_background_color(background_color)
+    use_alpha = background_rgba[3] < 255
     times, values = _metric_series(points, resolved_type)
     effective_fps = _resolve_effective_fps(duration_seconds, fps)
     total_frames = max(int(duration_seconds * effective_fps), 2)
@@ -521,6 +543,7 @@ def create_telemetry_animation(
         width_px=width_px,
         height_px=height_px,
         fps=effective_fps,
+        use_alpha=use_alpha,
     )
     if ffmpeg_proc.stdin is None:
         raise RuntimeError("Failed to open ffmpeg pipe for writing.")

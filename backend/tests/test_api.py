@@ -390,12 +390,48 @@ class ApiTests(unittest.TestCase):
             "telemetry_type": "heart_rate",
             "background_color": "transparent",
         }
-        fake_video = b"telemetry-mp4"
+        fake_video = b"telemetry-webm"
         captured = {}
 
         def _fake_telemetry_animation(points, **kwargs):
             captured["point_count"] = len(points)
             captured.update(kwargs)
+            with open(kwargs["output_path"], "wb") as f:
+                f.write(fake_video)
+
+        with mock.patch(
+            "gpx_helper.api.main.create_telemetry_animation",
+            side_effect=_fake_telemetry_animation,
+        ):
+            response = self.client.post("/api/v1/gpx/telemetry-video", files=files, data=data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["content-type"], "video/webm")
+        self.assertEqual(response.content, fake_video)
+        self.assertIn(
+            "attachment; filename=ride-heart_rate.webm",
+            response.headers["content-disposition"],
+        )
+        self.assertEqual(captured["point_count"], 3)
+        self.assertEqual(captured["telemetry_type"], "heart_rate")
+        self.assertEqual(captured["background_color"], "transparent")
+        self.assertEqual(captured["width_px"], 640)
+        self.assertEqual(captured["height_px"], 640)
+
+    def test_telemetry_video_opaque_background_returns_mp4(self) -> None:
+        files = {
+            "gpx_file": ("ride.gpx", _build_gpx_with_telemetry(), "application/gpx+xml"),
+        }
+        data = {
+            "duration_seconds": "20",
+            "fps": "30",
+            "resolution": "640x640",
+            "telemetry_type": "heart_rate",
+            "background_color": "#000000",
+        }
+        fake_video = b"telemetry-mp4"
+
+        def _fake_telemetry_animation(points, **kwargs):
             with open(kwargs["output_path"], "wb") as f:
                 f.write(fake_video)
 
@@ -412,11 +448,6 @@ class ApiTests(unittest.TestCase):
             "attachment; filename=ride-heart_rate.mp4",
             response.headers["content-disposition"],
         )
-        self.assertEqual(captured["point_count"], 3)
-        self.assertEqual(captured["telemetry_type"], "heart_rate")
-        self.assertEqual(captured["background_color"], "transparent")
-        self.assertEqual(captured["width_px"], 640)
-        self.assertEqual(captured["height_px"], 640)
 
     def test_telemetry_video_rejects_missing_heart_rate_data(self) -> None:
         files = {
@@ -434,6 +465,22 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("heart rate data", response.json()["detail"])
+
+    def test_telemetry_video_rejects_invalid_background_color(self) -> None:
+        files = {
+            "gpx_file": ("ride.gpx", _build_gpx_with_telemetry(), "application/gpx+xml"),
+        }
+        data = {
+            "duration_seconds": "20",
+            "fps": "30",
+            "resolution": "640x640",
+            "telemetry_type": "heart_rate",
+            "background_color": "not-a-color",
+        }
+
+        response = self.client.post("/api/v1/gpx/telemetry-video", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
 
     def test_telemetry_video_estimate_success(self) -> None:
         files = {
