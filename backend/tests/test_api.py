@@ -241,7 +241,7 @@ class ApiTests(unittest.TestCase):
             with open(output_path, "wb") as f:
                 f.write(fake_video)
 
-        with mock.patch("gpx_helper.api.main.create_animation", side_effect=_fake_animation):
+        with mock.patch("gpx_helper.api.routes.animation.create_animation", side_effect=_fake_animation):
             response = self.client.post("/api/v1/gpx/map-animate", files=files, data=data)
 
         self.assertEqual(response.status_code, 200)
@@ -325,7 +325,7 @@ class ApiTests(unittest.TestCase):
             "resolution": "640x480",
         }
         with mock.patch(
-            "gpx_helper.api.main.estimate_animation_seconds", return_value=3.5
+            "gpx_helper.api.routes.animation.estimate_animation_seconds", return_value=3.5
         ) as mock_estimate:
             response = self.client.post(
                 "/api/v1/gpx/map-animate/estimate", files=files, data=data
@@ -400,7 +400,7 @@ class ApiTests(unittest.TestCase):
                 f.write(fake_video)
 
         with mock.patch(
-            "gpx_helper.api.main.create_telemetry_animation",
+            "gpx_helper.api.routes.telemetry.create_telemetry_animation",
             side_effect=_fake_telemetry_animation,
         ):
             response = self.client.post("/api/v1/gpx/telemetry-video", files=files, data=data)
@@ -436,7 +436,7 @@ class ApiTests(unittest.TestCase):
                 f.write(fake_video)
 
         with mock.patch(
-            "gpx_helper.api.main.create_telemetry_animation",
+            "gpx_helper.api.routes.telemetry.create_telemetry_animation",
             side_effect=_fake_telemetry_animation,
         ):
             response = self.client.post("/api/v1/gpx/telemetry-video", files=files, data=data)
