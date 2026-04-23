@@ -2,7 +2,7 @@
 
 Utilities for aligning GoPro (or other camera) video timestamps with GPX tracks. The primary tool, `gpx_splitter.py`,
 crops a GPX track to match a video clip so you can sync footage and GPS data for mapping or overlays. The repository
-also includes a Svelte landing page in `frontend/` and a Python/FastAPI backend in `backend/`.
+also includes a Svelte + Vite frontend in `frontend/` and a Python/FastAPI backend (managed with Poetry) in `backend/`.
 
 ## Features
 - Extracts video start time and duration from EXIF metadata via `exiftool`.
@@ -10,27 +10,34 @@ also includes a Svelte landing page in `frontend/` and a Python/FastAPI backend 
 - Falls back to file modification time when metadata is missing, with clear warnings.
 - Works with GPX files that include timezone-aware timestamps (UTC recommended).
 - Renders GPX tracks into MP4 map animations with OpenStreetMap tiles.
+- Supports multi-clip trimming and telemetry video rendering (heart rate, speed, elevation).
 
 ## Requirements
-- Python 3.8+
+- Python 3.13+
 - [`exiftool`](https://exiftool.org/) available in your `PATH` (for `gpx_splitter.py`)
-- `gpxpy`, `matplotlib`, `folium`, and `pillow` Python packages (for map animation)
+- Backend Python dependencies installed via Poetry (`gpxpy`, `matplotlib`, `pillow`, `numpy`, `fastapi`, etc.)
 - [`ffmpeg`](https://ffmpeg.org/) available in your `PATH` when exporting video
+- Node.js 20+ and npm (for the frontend)
 
 ## Installation
-Clone or download this repository. Install the tools you need for the backend:
+Clone or download this repository. Install the system tools, then install project dependencies:
 
 ```bash
 # Core dependency for gpx_splitter.py
 brew install exiftool  # macOS
 sudo apt-get update && sudo apt-get install -y libimage-exiftool-perl  # Ubuntu/Debian
 
-# Map animation dependencies
-pip install gpxpy matplotlib folium pillow
-
 # ffmpeg is required to write MP4 output
 brew install ffmpeg  # macOS
 sudo apt-get install -y ffmpeg  # Ubuntu/Debian
+
+# Backend dependencies
+cd backend
+poetry install
+
+# Frontend dependencies
+cd ../frontend
+npm ci
 ```
 
 ## Backend usage
@@ -44,8 +51,8 @@ python3 backend/src/gpx_helper/gpx_splitter.py /path/to/video.MP4 /path/to/track
 If `-o/--output` is omitted, the script writes to `<input>.cropped.gpx` next to the original GPX file.
 
 ## Backend API (foundation)
-The backend includes a FastAPI service that trims GPX files by a known time window or by
-matching a video file. Start the API from the repository root:
+The backend includes a FastAPI service for GPX trimming, map animation, and telemetry video rendering.
+Start the API from the repository root:
 
 ```bash
 cd backend
@@ -66,8 +73,17 @@ curl -X POST http://localhost:8000/api/v1/gpx/trim-by-time \
 ```bash
 curl -X POST http://localhost:8000/api/v1/gpx/trim-by-video \
   -F gpx_file=@/path/to/track.gpx \
-  -F video_file=@/path/to/video.MP4 \
+  -F start_time=2025-11-02T17:02:23Z \
+  -F end_time=2025-11-02T17:07:00Z \
+  -F duration_seconds=277 \
   --output trimmed.gpx
+```
+
+```bash
+curl -X POST http://localhost:8000/api/v1/gpx/trim-by-videos \
+  -F gpx_file=@/path/to/track.gpx \
+  -F 'clips_json=[{"start_time":"2025-11-02T17:02:23Z","end_time":"2025-11-02T17:07:00Z","duration_seconds":277}]' \
+  --output trimmed.zip
 ```
 
 ```bash
@@ -82,6 +98,23 @@ curl -X POST http://localhost:8000/api/v1/gpx/map-animate/estimate \
   -F gpx_file=@/path/to/track.gpx \
   -F duration_seconds=45 \
   -F resolution=1920x1080
+```
+
+```bash
+curl -X POST http://localhost:8000/api/v1/gpx/telemetry-video \
+  -F gpx_file=@/path/to/track.gpx \
+  -F duration_seconds=45 \
+  -F resolution=1080x1080 \
+  -F telemetry_type=heart_rate \
+  -F background_color=transparent \
+  --output telemetry.webm
+
+# Ask for telemetry render ETA (JSON response)
+curl -X POST http://localhost:8000/api/v1/gpx/telemetry-video/estimate \
+  -F gpx_file=@/path/to/track.gpx \
+  -F duration_seconds=45 \
+  -F resolution=1080x1080 \
+  -F telemetry_type=heart_rate
 ```
 
 ## Animate a GPX route on a map
@@ -143,10 +176,13 @@ npm install
 npm run dev
 ```
 
-Then open the local Vite URL (default port 4173).
+Then open the local Vite URL (default port 5173).
 
 ## Contributing
-Feel free to open issues or submit pull requests with improvements or bug fixes.
+Feel free to open issues or submit pull requests with improvements or bug fixes. PRs are validated with the
+GitHub Actions workflow in `.github/workflows/pr-structure-check.yml`, which runs backend tests
+(`poetry run python -m unittest discover -s tests`) and frontend checks/tests/build
+(`npm run check`, `npm test -- --run`, `npm run build`).
 
 ## License
 This repository is available for use without limitations.
