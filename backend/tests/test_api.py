@@ -154,6 +154,21 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("outside GPX time range", response.json()["detail"])
 
+    def test_trim_by_video_rejects_reversed_times(self) -> None:
+        files = {
+            "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
+        }
+        data = {
+            "start_time": "2024-01-01T00:00:20Z",
+            "end_time": "2024-01-01T00:00:10Z",
+            "duration_seconds": "10",
+        }
+
+        response = self.client.post("/api/v1/gpx/trim-by-video", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "start_time must be before end_time")
+
     def test_trim_by_videos_success(self) -> None:
         files = {
             "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
@@ -209,6 +224,19 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["detail"], "Clip 1 timestamps fall outside GPX time range")
+
+    def test_trim_by_videos_rejects_invalid_json(self) -> None:
+        files = {
+            "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
+        }
+        data = {
+            "clips_json": "{not valid json}",
+        }
+
+        response = self.client.post("/api/v1/gpx/trim-by-videos", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "clips_json must be valid JSON")
 
     def test_map_animation_success(self) -> None:
         files = {
