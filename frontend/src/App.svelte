@@ -25,11 +25,6 @@
     { value: 'cyclosm', label: 'CyclOSM' },
     { value: 'opentopomap', label: 'OpenTopoMap (Topo)' }
   ];
-  const mapTilePreviewUrls = {
-    osm: 'https://tile.openstreetmap.org/12/654/1582.png',
-    cyclosm: 'https://a.tile-cyclosm.openstreetmap.fr/cyclosm/12/654/1582.png',
-    opentopomap: 'https://a.tile.opentopomap.org/12/654/1582.png'
-  };
   const telemetryTypeOptions = [
     { value: 'elevation_value', label: 'Elevation value' },
     { value: 'speed', label: 'Speed' },
@@ -56,8 +51,6 @@
   let currentPage = defaultPage;
 
   $: isBusy = [trimByTime, trimByVideos, mapAnimation, telemetryVideo].some((state) => state.status === 'loading');
-  $: currentMapTileOption = mapTileOptions.find((option) => option.value === mapAnimation.tileType) ?? mapTileOptions[0];
-  $: currentMapTilePreview = mapTilePreviewUrls[mapAnimation.tileType] ?? null;
   $: activePage = pages.find((page) => page.id === currentPage) ?? pages[0];
   $: activePageDescription = pageDescriptions[currentPage] ?? pageDescriptions[defaultPage];
 
@@ -415,8 +408,6 @@
           {mapAnimation}
           {isBusy}
           {mapTileOptions}
-          {currentMapTileOption}
-          {currentMapTilePreview}
           onSubmit={submitMapAnimation}
           onGpxChange={handleMapAnimationGpxChange}
         />

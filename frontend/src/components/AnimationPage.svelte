@@ -4,11 +4,19 @@
   export let mapAnimation;
   export let isBusy;
   export let mapTileOptions;
-  export let currentMapTileOption;
-  export let currentMapTilePreview;
 
   export let onSubmit;
   export let onGpxChange;
+
+  const mapTilePreviewUrls = {
+    '': 'https://tile.openstreetmap.org/12/654/1582.png',
+    osm: 'https://tile.openstreetmap.org/12/654/1582.png',
+    cyclosm: 'https://a.tile-cyclosm.openstreetmap.fr/cyclosm/12/654/1582.png',
+    opentopomap: 'https://a.tile.opentopomap.org/12/654/1582.png'
+  };
+
+  $: selectedMapTileOption = mapTileOptions.find((option) => option.value === mapAnimation.tileType) ?? mapTileOptions[0];
+  $: selectedMapTilePreview = mapTilePreviewUrls[mapAnimation.tileType] ?? null;
 </script>
 
 <section class="tool-card wide">
@@ -55,11 +63,12 @@
         <p class="options-title">Map tiles</p>
         <div class="options-stack">
           <figure class="tile-preview">
-            {#if currentMapTilePreview}
-              <img src={currentMapTilePreview} alt={`${currentMapTileOption.label} map tile preview`} loading="lazy" />
-              <figcaption>{currentMapTileOption.label}</figcaption>
+            {#if selectedMapTilePreview}
+              {#key selectedMapTilePreview}
+                <img src={selectedMapTilePreview} alt={`${selectedMapTileOption.label} map tile preview`} loading="lazy" />
+              {/key}
             {:else}
-              <figcaption>{currentMapTileOption.label}. No preview available.</figcaption>
+              <figcaption>No preview available.</figcaption>
             {/if}
           </figure>
           <label>
