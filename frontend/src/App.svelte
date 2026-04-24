@@ -3,6 +3,7 @@
   import AnimationPage from './components/AnimationPage.svelte';
   import AboutPage from './components/AboutPage.svelte';
   import LoadingBanner from './components/LoadingBanner.svelte';
+  import TaskSelector from './components/TaskSelector.svelte';
   import TelemetryPage from './components/TelemetryPage.svelte';
   import TrimPage from './components/TrimPage.svelte';
   import { parseGpxDurationFromText, parseGpxTimeRangeFromText } from './gpx-metadata';
@@ -30,6 +31,11 @@
     { value: 'heart_rate', label: 'Heart rate' },
     { value: 'elevation_graph', label: 'Elevation graph' }
   ];
+  const tasks = [
+    { id: 'trim', href: '#/trim', label: 'Trim GPX', description: 'Cut a track by timestamps or split it around recorded videos.' },
+    { id: 'animation', href: '#/animation', label: 'Create route animation', description: 'Render a map-based MP4 animation from a GPX route.' },
+    { id: 'telemetry', href: '#/telemetry', label: 'Generate telemetry video', description: 'Export an MP4 overlay with speed, elevation, or graph data.' }
+  ];
   const pages = [
     { id: 'trim', href: '#/trim', label: 'Trim GPX' },
     { id: 'animation', href: '#/animation', label: 'Route animation' },
@@ -52,6 +58,7 @@
   $: isBusy = [trimByTime, trimByVideos, mapAnimation, telemetryVideo].some((state) => state.status === 'loading');
   $: activePage = pages.find((page) => page.id === currentPage) ?? pages[0];
   $: activePageDescription = pageDescriptions[currentPage] ?? pageDescriptions[defaultPage];
+  $: selectedTask = tasks.some((task) => task.id === currentPage) ? currentPage : '';
 
   function normalizeHash(hash) {
     const route = hash.replace(/^#\/?/, '').split(/[?#]/)[0].toLowerCase();
@@ -373,8 +380,8 @@
 
   <section class="workspace-bar">
     <div class="workspace-title">
-      <h1>{activePage.label}</h1>
-      <p class="muted-text">{activePageDescription}</p>
+      <h1>What do you want to do?</h1>
+      <p class="muted-text">Select a task first. The workspace below then shows only the inputs and action for that flow.</p>
     </div>
     <nav class="workspace-tabs" aria-label="Main menu">
       {#each pages as page}
@@ -382,6 +389,8 @@
       {/each}
     </nav>
   </section>
+
+  <TaskSelector {tasks} {selectedTask} />
 
   {#if isBusy}
     <LoadingBanner {activeRequestLabel} {estimatedSeconds} />

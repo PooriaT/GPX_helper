@@ -11,27 +11,38 @@ describe('App', () => {
 
     const mainMenu = screen.getByRole('navigation', { name: /Main menu/i });
 
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Trim GPX');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('What do you want to do?');
+    expect(screen.getByRole('heading', { level: 2, name: /Choose what you want to do/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Trim GPX Cut a track/i })).toHaveAttribute('aria-current', 'step');
     expect(within(mainMenu).getByRole('link', { name: /^Trim GPX$/i })).toHaveAttribute(
       'aria-current',
       'page'
     );
     expect(within(mainMenu).getByRole('link', { name: /^Route animation$/i })).toBeInTheDocument();
     expect(within(mainMenu).getByRole('link', { name: /^Telemetry video$/i })).toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', { level: 2, name: /Trim by time/i })
-    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: /^Trim GPX$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Trim by time/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Split by videos/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/Start time/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/End time/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Trim track/i })).toBeInTheDocument();
 
-    expect(
-      screen.getByRole('heading', { level: 2, name: /Split by videos/i })
-    ).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Video files$/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Create ZIP/i })).not.toBeInTheDocument();
+    expect(screen.getAllByLabelText(/^GPX file$/i)).toHaveLength(1);
+    expect(screen.getByLabelText(/Optional video file/i)).toBeInTheDocument();
+  });
+
+  it('shows split-by-videos controls only after selecting that trim mode', async () => {
+    render(App);
+
+    await fireEvent.click(screen.getByRole('button', { name: /Split by videos/i }));
+
     expect(screen.getByLabelText(/^Video files$/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Create ZIP/i })).toBeInTheDocument();
-    expect(screen.getAllByLabelText(/^GPX file$/i)).toHaveLength(2);
-    expect(screen.getByLabelText(/Optional video file/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Start time/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Trim track/i })).not.toBeInTheDocument();
+    expect(screen.getAllByLabelText(/^GPX file$/i)).toHaveLength(1);
   });
 
   it('renders the route animation page from the hash route', async () => {
@@ -39,23 +50,20 @@ describe('App', () => {
     render(App);
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Route animation');
+      expect(screen.getByRole('heading', { level: 2, name: /Create route animation/i })).toBeInTheDocument();
     });
     expect(
       within(screen.getByRole('navigation', { name: /Main menu/i })).getByRole('link', {
         name: /^Route animation$/i
       })
     ).toHaveAttribute('aria-current', 'page');
-    expect(
-      screen.getByRole('heading', { level: 2, name: /Render animation/i })
-    ).toBeInTheDocument();
     expect(screen.getByLabelText(/Duration \(seconds\)/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Frames per second/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Resolution width/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Resolution height/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Tile style/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Render animation/i })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { level: 2, name: /Trim by time/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Trim by time/i })).not.toBeInTheDocument();
   });
 
   it('shows the selected marker color in the route animation style controls', async () => {
@@ -78,16 +86,13 @@ describe('App', () => {
     render(App);
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Telemetry video');
+      expect(screen.getByRole('heading', { level: 2, name: /Generate telemetry video/i })).toBeInTheDocument();
     });
     expect(
       within(screen.getByRole('navigation', { name: /Main menu/i })).getByRole('link', {
         name: /^Telemetry video$/i
       })
     ).toHaveAttribute('aria-current', 'page');
-    expect(
-      screen.getByRole('heading', { level: 2, name: /Render telemetry video/i })
-    ).toBeInTheDocument();
     expect(screen.getByLabelText(/Telemetry video type/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Background color/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Render telemetry video/i })).toBeInTheDocument();
@@ -98,7 +103,7 @@ describe('App', () => {
     render(App);
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/^GPX file$/i)).toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 2, name: /Generate telemetry video/i })).toBeInTheDocument();
     });
 
     const fileInput = screen.getByLabelText(/^GPX file$/i);
