@@ -27,9 +27,9 @@ describe('App', () => {
     expect(screen.getByLabelText(/End time/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Trim track/i })).toBeInTheDocument();
 
-    expect(screen.queryByLabelText(/^Video files$/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/^Video files$/i)).not.toBeVisible();
     expect(screen.queryByRole('button', { name: /Create ZIP/i })).not.toBeInTheDocument();
-    expect(screen.getAllByLabelText(/^GPX file$/i)).toHaveLength(1);
+    expect(screen.getAllByLabelText(/^GPX file$/i)).toHaveLength(2);
     expect(screen.getByLabelText(/Optional video file/i)).toBeInTheDocument();
   });
 
@@ -39,10 +39,11 @@ describe('App', () => {
     await fireEvent.click(screen.getByRole('button', { name: /Split by videos/i }));
 
     expect(screen.getByLabelText(/^Video files$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Video files$/i)).toBeVisible();
     expect(screen.getByRole('button', { name: /Create ZIP/i })).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Start time/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Start time/i)).not.toBeVisible();
     expect(screen.queryByRole('button', { name: /Trim track/i })).not.toBeInTheDocument();
-    expect(screen.getAllByLabelText(/^GPX file$/i)).toHaveLength(1);
+    expect(screen.getAllByLabelText(/^GPX file$/i)).toHaveLength(2);
   });
 
   it('renders the route animation page from the hash route', async () => {
