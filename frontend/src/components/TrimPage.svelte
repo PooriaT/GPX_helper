@@ -29,7 +29,7 @@
     </button>
   </div>
 
-  {#if selectedMode === 'time'}
+  <section hidden={selectedMode !== 'time'} aria-hidden={selectedMode !== 'time'}>
     <form class="form-grid" on:submit|preventDefault={onSubmitTrimByTime}>
       <section class="step-section">
         <div class="step-heading">
@@ -125,7 +125,9 @@
         Download {trimByTime.filename}
       </a>
     {/if}
-  {:else}
+  </section>
+
+  <section hidden={selectedMode !== 'videos'} aria-hidden={selectedMode !== 'videos'}>
     <form class="form-grid" on:submit|preventDefault={onSubmitTrimByVideos}>
       <section class="step-section">
         <div class="step-heading">
@@ -217,5 +219,5 @@
         Download {trimByVideos.filename}
       </a>
     {/if}
-  {/if}
+  </section>
 </TaskContainer>
