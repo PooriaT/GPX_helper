@@ -9,7 +9,6 @@
   export let onGpxChange;
 
   const mapTilePreviewUrls = {
-    '': 'https://tile.openstreetmap.org/12/654/1582.png',
     osm: 'https://tile.openstreetmap.org/12/654/1582.png',
     cyclosm: 'https://a.tile-cyclosm.openstreetmap.fr/cyclosm/12/654/1582.png',
     opentopomap: 'https://a.tile.opentopomap.org/12/654/1582.png'
