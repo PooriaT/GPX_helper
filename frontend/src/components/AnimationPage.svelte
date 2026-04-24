@@ -1,4 +1,6 @@
 <script>
+  import FileField from './FileField.svelte';
+
   export let mapAnimation;
   export let isBusy;
   export let mapTileOptions;
@@ -12,13 +14,19 @@
 <section class="tool-card wide">
   <header class="section-header">
     <h2>Render animation</h2>
+    <p class="muted-text">Upload a GPX track and tune the route video output.</p>
   </header>
 
   <form class="form-grid" on:submit|preventDefault={onSubmit}>
-    <label>
-      GPX file
-      <input type="file" accept=".gpx,application/gpx+xml" on:change={onGpxChange} required />
-    </label>
+    <div class="form-section">
+      <FileField
+        label="GPX file"
+        accept=".gpx,application/gpx+xml"
+        fileName={mapAnimation.gpxFile?.name ?? ''}
+        onChange={onGpxChange}
+        required
+      />
+    </div>
     <div class="animation-inline-fields">
       <label class="compact-field">
         Duration (seconds)

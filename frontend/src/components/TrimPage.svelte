@@ -1,4 +1,6 @@
 <script>
+  import FileField from './FileField.svelte';
+
   export let trimByTime;
   export let trimByVideos;
   export let isBusy;
@@ -15,25 +17,36 @@
   <article class="tool-card workflow-card">
     <header class="section-header">
       <h2>Trim by time</h2>
+      <p class="muted-text">Select a GPX file and define the time range.</p>
     </header>
 
     <form class="form-grid" on:submit|preventDefault={onSubmitTrimByTime}>
-      <label>
-        GPX file
-        <input type="file" accept=".gpx,application/gpx+xml" on:change={onTrimByTimeGpxChange} required />
-      </label>
-      <label>
-        Optional video file
-        <input type="file" accept="video/*" on:change={onTrimByTimeVideoChange} />
-      </label>
-      <label>
-        Start time
-        <input type="datetime-local" step="1" bind:value={trimByTime.startLocal} required />
-      </label>
-      <label>
-        End time
-        <input type="datetime-local" step="1" bind:value={trimByTime.endLocal} required />
-      </label>
+      <div class="form-section">
+        <FileField
+          label="GPX file"
+          accept=".gpx,application/gpx+xml"
+          fileName={trimByTime.gpxFile?.name ?? ''}
+          onChange={onTrimByTimeGpxChange}
+          required
+        />
+        <FileField
+          label="Optional video file"
+          accept="video/*"
+          fileName={trimByTime.videoFile?.name ?? ''}
+          placeholder="Optional metadata source"
+          onChange={onTrimByTimeVideoChange}
+        />
+      </div>
+      <div class="form-section form-section-inline">
+        <label>
+          Start time
+          <input type="datetime-local" step="1" bind:value={trimByTime.startLocal} required />
+        </label>
+        <label>
+          End time
+          <input type="datetime-local" step="1" bind:value={trimByTime.endLocal} required />
+        </label>
+      </div>
       <div class="form-actions">
         <button type="submit" disabled={isBusy}>Trim track</button>
       </div>
@@ -54,17 +67,28 @@
   <article class="tool-card workflow-card workflow-card-emphasis">
     <header class="section-header">
       <h2>Split by videos</h2>
+      <p class="muted-text">Create one trimmed GPX segment for each video file.</p>
     </header>
 
     <form class="form-grid" on:submit|preventDefault={onSubmitTrimByVideos}>
-      <label>
-        GPX file
-        <input type="file" accept=".gpx,application/gpx+xml" on:change={onTrimByVideosGpxChange} required />
-      </label>
-      <label>
-        Video files
-        <input type="file" accept="video/*" multiple on:change={onTrimByVideosVideoChange} required />
-      </label>
+      <div class="form-section">
+        <FileField
+          label="GPX file"
+          accept=".gpx,application/gpx+xml"
+          fileName={trimByVideos.gpxFile?.name ?? ''}
+          onChange={onTrimByVideosGpxChange}
+          required
+        />
+        <FileField
+          label="Video files"
+          accept="video/*"
+          multiple
+          fileName={trimByVideos.videoFiles.length ? `${trimByVideos.videoFiles.length} video files selected` : ''}
+          placeholder="Select videos to split by"
+          onChange={onTrimByVideosVideoChange}
+          required
+        />
+      </div>
       <div class="options-group">
         <p class="options-title">Clips</p>
         {#if trimByVideos.clips.length}

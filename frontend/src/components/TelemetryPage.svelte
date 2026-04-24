@@ -1,4 +1,6 @@
 <script>
+  import FileField from './FileField.svelte';
+
   export let telemetryVideo;
   export let isBusy;
   export let telemetryTypeOptions;
@@ -16,10 +18,15 @@
   </header>
 
   <form class="form-grid" on:submit|preventDefault={onSubmit}>
-    <label>
-      GPX file
-      <input type="file" accept=".gpx,application/gpx+xml" on:change={onGpxChange} required />
-    </label>
+    <div class="form-section">
+      <FileField
+        label="GPX file"
+        accept=".gpx,application/gpx+xml"
+        fileName={telemetryVideo.gpxFile?.name ?? ''}
+        onChange={onGpxChange}
+        required
+      />
+    </div>
     <div class="animation-inline-fields">
       <label class="compact-field">
         Duration (seconds)
