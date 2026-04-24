@@ -16,20 +16,14 @@
 
   let trimByTime = { startLocal: '', endLocal: '', gpxFile: null, videoFile: null, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
   let trimByVideos = { gpxFile: null, videoFiles: [], clips: [], totalDurationSeconds: 0, isPreparing: false, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
-  let mapAnimation = { gpxFile: null, durationSeconds: 45, fps: 30, resolutionWidth: 1024, resolutionHeight: 1024, tileType: '', markerColor: '#0ea5e9', trailColor: '#0ea5e9', fullTrailColor: '#111827', fullTrailOpacity: 0.8, markerSize: 6, lineWidth: 2.5, lineOpacity: 1, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
+  let mapAnimation = { gpxFile: null, durationSeconds: 45, fps: 30, resolutionWidth: 1024, resolutionHeight: 1024, tileType: 'osm', markerColor: '#0ea5e9', trailColor: '#0ea5e9', fullTrailColor: '#111827', fullTrailOpacity: 0.8, markerSize: 6, lineWidth: 2.5, lineOpacity: 1, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
   let telemetryVideo = { gpxFile: null, durationSeconds: 4, fps: 30, resolutionWidth: 1024, resolutionHeight: 1024, telemetryType: 'elevation_value', backgroundColor: 'transparent', status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
 
   const mapTileOptions = [
-    { value: '', label: 'Server default' },
     { value: 'osm', label: 'OpenStreetMap (Standard)' },
     { value: 'cyclosm', label: 'CyclOSM' },
     { value: 'opentopomap', label: 'OpenTopoMap (Topo)' }
   ];
-  const mapTilePreviewUrls = {
-    osm: 'https://tile.openstreetmap.org/12/654/1582.png',
-    cyclosm: 'https://a.tile-cyclosm.openstreetmap.fr/cyclosm/12/654/1582.png',
-    opentopomap: 'https://a.tile.opentopomap.org/12/654/1582.png'
-  };
   const telemetryTypeOptions = [
     { value: 'elevation_value', label: 'Elevation value' },
     { value: 'speed', label: 'Speed' },
@@ -42,6 +36,12 @@
     { id: 'telemetry', href: '#/telemetry', label: 'Telemetry video' },
     { id: 'about', href: '#/about', label: 'About' }
   ];
+  const pageDescriptions = {
+    trim: 'Trim tracks by exact times or split them from video metadata.',
+    animation: 'Render a clean MP4 route animation from a GPX track.',
+    telemetry: 'Create telemetry-only videos for overlays and compositing.',
+    about: 'A quick overview of the tools available in GPX Helper.'
+  };
   const defaultPage = pages[0].id;
 
   let activeRequestLabel = '';
@@ -50,9 +50,8 @@
   let currentPage = defaultPage;
 
   $: isBusy = [trimByTime, trimByVideos, mapAnimation, telemetryVideo].some((state) => state.status === 'loading');
-  $: currentMapTileOption = mapTileOptions.find((option) => option.value === mapAnimation.tileType) ?? mapTileOptions[0];
-  $: currentMapTilePreview = mapTilePreviewUrls[mapAnimation.tileType] ?? null;
   $: activePage = pages.find((page) => page.id === currentPage) ?? pages[0];
+  $: activePageDescription = pageDescriptions[currentPage] ?? pageDescriptions[defaultPage];
 
   function normalizeHash(hash) {
     const route = hash.replace(/^#\/?/, '').split(/[?#]/)[0].toLowerCase();
@@ -373,7 +372,10 @@
   </header>
 
   <section class="workspace-bar">
-    <h1>{activePage.label}</h1>
+    <div class="workspace-title">
+      <h1>{activePage.label}</h1>
+      <p class="muted-text">{activePageDescription}</p>
+    </div>
     <nav class="workspace-tabs" aria-label="Main menu">
       {#each pages as page}
         <a href={page.href} class:workspace-tab-active={currentPage === page.id} aria-current={currentPage === page.id ? 'page' : undefined}>{page.label}</a>
@@ -386,39 +388,39 @@
   {/if}
 
   <main class="content">
-    {#if currentPage === 'trim'}
-      <TrimPage
-        {trimByTime}
-        {trimByVideos}
-        {isBusy}
-        {formatDurationLabel}
-        onSubmitTrimByTime={submitTrimByTime}
-        onSubmitTrimByVideos={submitTrimByVideos}
-        onTrimByTimeGpxChange={handleTrimByTimeGpxChange}
-        onTrimByTimeVideoChange={handleTrimByTimeVideoChange}
-        onTrimByVideosGpxChange={handleTrimByVideosGpxChange}
-        onTrimByVideosVideoChange={handleTrimByVideosVideoChange}
-      />
-    {:else if currentPage === 'animation'}
-      <AnimationPage
-        {mapAnimation}
-        {isBusy}
-        {mapTileOptions}
-        {currentMapTileOption}
-        {currentMapTilePreview}
-        onSubmit={submitMapAnimation}
-        onGpxChange={handleMapAnimationGpxChange}
-      />
-    {:else if currentPage === 'telemetry'}
-      <TelemetryPage
-        {telemetryVideo}
-        {isBusy}
-        {telemetryTypeOptions}
-        onSubmit={submitTelemetryVideo}
-        onGpxChange={handleTelemetryGpxChange}
-      />
-    {:else}
-      <AboutPage />
-    {/if}
+    <div class="page-transition">
+      {#if currentPage === 'trim'}
+        <TrimPage
+          {trimByTime}
+          {trimByVideos}
+          {isBusy}
+          {formatDurationLabel}
+          onSubmitTrimByTime={submitTrimByTime}
+          onSubmitTrimByVideos={submitTrimByVideos}
+          onTrimByTimeGpxChange={handleTrimByTimeGpxChange}
+          onTrimByTimeVideoChange={handleTrimByTimeVideoChange}
+          onTrimByVideosGpxChange={handleTrimByVideosGpxChange}
+          onTrimByVideosVideoChange={handleTrimByVideosVideoChange}
+        />
+      {:else if currentPage === 'animation'}
+        <AnimationPage
+          {mapAnimation}
+          {isBusy}
+          {mapTileOptions}
+          onSubmit={submitMapAnimation}
+          onGpxChange={handleMapAnimationGpxChange}
+        />
+      {:else if currentPage === 'telemetry'}
+        <TelemetryPage
+          {telemetryVideo}
+          {isBusy}
+          {telemetryTypeOptions}
+          onSubmit={submitTelemetryVideo}
+          onGpxChange={handleTelemetryGpxChange}
+        />
+      {:else}
+        <AboutPage />
+      {/if}
+    </div>
   </main>
 </div>

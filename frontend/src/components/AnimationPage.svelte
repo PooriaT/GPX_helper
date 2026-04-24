@@ -1,24 +1,39 @@
 <script>
+  import FileField from './FileField.svelte';
+
   export let mapAnimation;
   export let isBusy;
   export let mapTileOptions;
-  export let currentMapTileOption;
-  export let currentMapTilePreview;
 
   export let onSubmit;
   export let onGpxChange;
+
+  const mapTilePreviewUrls = {
+    osm: 'https://tile.openstreetmap.org/12/654/1582.png',
+    cyclosm: 'https://a.tile-cyclosm.openstreetmap.fr/cyclosm/12/654/1582.png',
+    opentopomap: 'https://a.tile.opentopomap.org/12/654/1582.png'
+  };
+
+  $: selectedMapTileOption = mapTileOptions.find((option) => option.value === mapAnimation.tileType) ?? mapTileOptions[0];
+  $: selectedMapTilePreview = mapTilePreviewUrls[mapAnimation.tileType] ?? null;
 </script>
 
 <section class="tool-card wide">
   <header class="section-header">
     <h2>Render animation</h2>
+    <p class="muted-text">Upload a GPX track and tune the route video output.</p>
   </header>
 
   <form class="form-grid" on:submit|preventDefault={onSubmit}>
-    <label>
-      GPX file
-      <input type="file" accept=".gpx,application/gpx+xml" on:change={onGpxChange} required />
-    </label>
+    <div class="form-section">
+      <FileField
+        label="GPX file"
+        accept=".gpx,application/gpx+xml"
+        fileName={mapAnimation.gpxFile?.name ?? ''}
+        onChange={onGpxChange}
+        required
+      />
+    </div>
     <div class="animation-inline-fields">
       <label class="compact-field">
         Duration (seconds)
@@ -47,11 +62,12 @@
         <p class="options-title">Map tiles</p>
         <div class="options-stack">
           <figure class="tile-preview">
-            {#if currentMapTilePreview}
-              <img src={currentMapTilePreview} alt={`${currentMapTileOption.label} map tile preview`} loading="lazy" />
-              <figcaption>{currentMapTileOption.label}</figcaption>
+            {#if selectedMapTilePreview}
+              {#key selectedMapTilePreview}
+                <img src={selectedMapTilePreview} alt={`${selectedMapTileOption.label} map tile preview`} loading="lazy" />
+              {/key}
             {:else}
-              <figcaption>{currentMapTileOption.label}. No preview available.</figcaption>
+              <figcaption>No preview available.</figcaption>
             {/if}
           </figure>
           <label>
