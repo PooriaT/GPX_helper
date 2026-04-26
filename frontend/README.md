@@ -3,11 +3,16 @@
 Svelte-based landing page for the GPX Helper tools.
 
 ## Prerequisites
+- Python 3.13+
+- Poetry
 - Node.js 18+
 - npm
 
 ## Install dependencies
 ```sh
+cd ../backend
+poetry install
+cd ../frontend
 npm install
 ```
 
@@ -16,7 +21,13 @@ npm install
 npm run dev
 ```
 
-The app will be available at <http://localhost:4173>.
+This starts the FastAPI backend at <http://localhost:8000> and the frontend at <http://localhost:4173>.
+
+To run only one side:
+```sh
+npm run dev:frontend
+npm run dev:backend
+```
 
 ## Build for production
 ```sh

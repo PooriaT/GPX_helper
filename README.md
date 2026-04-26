@@ -50,14 +50,28 @@ python3 backend/src/gpx_helper/gpx_splitter.py /path/to/video.MP4 /path/to/track
 
 If `-o/--output` is omitted, the script writes to `<input>.cropped.gpx` next to the original GPX file.
 
-## Backend API (foundation)
-The backend includes a FastAPI service for GPX trimming, map animation, and telemetry video rendering.
-Start the API from the repository root:
+## Local development
+Run the backend and frontend together from the frontend directory:
 
 ```bash
-cd backend
-poetry install
-poetry run uvicorn gpx_helper.api.main:app --reload
+cd frontend
+npm run dev
+```
+
+This starts the FastAPI backend at `http://localhost:8000` and the Vite frontend at `http://localhost:4173`.
+Poetry dependencies must already be installed in `backend/`, and npm dependencies must already be installed in `frontend/`.
+
+If you only need the frontend server, run `npm run dev:frontend` from `frontend/`. If you only need the backend API,
+run `npm run dev:backend` from `frontend/`.
+
+## Backend API (foundation)
+The backend includes a FastAPI service for GPX trimming, map animation, and telemetry video rendering.
+For normal local development, use `npm run dev` from `frontend/` to start the API and frontend together. To run only
+the API, use:
+
+```bash
+cd frontend
+npm run dev:backend
 ```
 
 Example requests:
@@ -168,7 +182,7 @@ exiftool -overwrite_original -P -api QuickTimeUTC=0 \
 - **No timestamps in GPX**: The crop requires GPX points with valid `<time>` elements that include timezone information (e.g., a trailing `Z` for UTC).
 
 ## Frontend landing page
-The Svelte-based landing page lives in `frontend/`. To run it locally:
+The Svelte-based landing page lives in `frontend/`. To run it with the backend locally:
 
 ```bash
 cd frontend
@@ -176,7 +190,7 @@ npm install
 npm run dev
 ```
 
-Then open the local Vite URL (default port 5173).
+Then open the local Vite URL: `http://localhost:4173`.
 
 ## Contributing
 Feel free to open issues or submit pull requests with improvements or bug fixes. PRs are validated with the
