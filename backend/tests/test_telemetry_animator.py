@@ -7,6 +7,7 @@ from unittest import mock
 
 import gpx_helper.telemetry_animator as telemetry_animator
 from gpx_helper.telemetry_animator import (
+    elevation_extrema,
     ensure_telemetry_type_supported,
     load_gpx_telemetry,
     parse_background_color,
@@ -75,8 +76,22 @@ class TelemetryAnimatorTests(unittest.TestCase):
             ensure_telemetry_type_supported(points, "heart_rate")
 
     def test_parse_background_color_supports_transparent_keyword(self) -> None:
+        self.assertEqual(parse_background_color(None), (0, 0, 0, 0))
+        self.assertEqual(parse_background_color(""), (0, 0, 0, 0))
         self.assertEqual(parse_background_color("transparent"), (0, 0, 0, 0))
         self.assertEqual(parse_background_color("#112233"), (17, 34, 51, 255))
+
+    def test_parse_background_color_rejects_invalid_color(self) -> None:
+        with self.assertRaisesRegex(ValueError, "Invalid background_color"):
+            parse_background_color("not-a-color")
+
+    def test_elevation_extrema_uses_actual_values(self) -> None:
+        values = telemetry_animator.np.asarray([42.0, 318.0, 101.0], dtype=float)
+
+        min_point, max_point = elevation_extrema(values)
+
+        self.assertEqual(min_point, (0, 42.0))
+        self.assertEqual(max_point, (1, 318.0))
 
     def test_open_ffmpeg_writer_uses_alpha_capable_encoding(self) -> None:
         with mock.patch("subprocess.Popen") as mock_popen:

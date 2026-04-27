@@ -8,7 +8,7 @@
   import TrimPage from './components/TrimPage.svelte';
   import { DEFAULT_API_BASE, MAP_TILE_OPTIONS, PAGE_DESCRIPTIONS, PAGES, TASKS, TELEMETRY_TYPE_OPTIONS } from './constants';
   import { cloneFormData, deriveMp4Filename, parseError, requestEta, requestFile } from './utils/api';
-  import { buildMapAnimationFormData, buildTelemetryFormData, buildTrimByTimeFormData, buildTrimByVideosFormData } from './utils/formData';
+  import { buildMapAnimationFormData, buildTelemetryFormData, buildTrimByTimeFormData, buildTrimByVideosFormData, resolveTelemetryBackgroundColor } from './utils/formData';
   import { formatDurationLabel, toIsoString, toLocalDateTimeValue } from './utils/time';
   import { buildVideoClip, deriveVideoTimes, ensureRangeFitsGpx, ensureVideosFitGpx, parseGpxDuration } from './utils/workflows';
 
@@ -17,7 +17,7 @@
   let trimByTime = { startLocal: '', endLocal: '', gpxFile: null, videoFile: null, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
   let trimByVideos = { gpxFile: null, videoFiles: [], clips: [], totalDurationSeconds: 0, isPreparing: false, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
   let mapAnimation = { gpxFile: null, durationSeconds: 45, fps: 30, resolutionWidth: 1024, resolutionHeight: 1024, tileType: '', markerColor: '#0ea5e9', trailColor: '#0ea5e9', fullTrailColor: '#111827', fullTrailOpacity: 0.8, markerSize: 6, lineWidth: 2.5, lineOpacity: 1, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
-  let telemetryVideo = { gpxFile: null, durationSeconds: 4, fps: 30, resolutionWidth: 1024, resolutionHeight: 1024, telemetryType: 'elevation_value', backgroundColor: 'transparent', status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
+  let telemetryVideo = { gpxFile: null, durationSeconds: 4, fps: 30, resolutionWidth: 1024, resolutionHeight: 1024, telemetryType: 'elevation_value', backgroundMode: 'transparent', backgroundColor: '#000000', status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
 
   const mapTileOptions = MAP_TILE_OPTIONS;
   const telemetryTypeOptions = TELEMETRY_TYPE_OPTIONS;
@@ -70,6 +70,14 @@
   function finishRequest() {
     activeRequestLabel = '';
     estimatedSeconds = null;
+  }
+
+  function deriveTelemetryFallbackFilename(file, backgroundColor) {
+    const extension = backgroundColor.trim().toLowerCase() === 'transparent' ? 'webm' : 'mp4';
+    const name = file?.name;
+    if (!name) return `telemetry.${extension}`;
+    const base = name.replace(/\.[^./\\]+$/, '');
+    return `${base || 'telemetry'}.${extension}`;
   }
 
   async function submitTrimByTime() {
@@ -172,7 +180,8 @@
       if (!telemetryVideo.resolutionWidth || !telemetryVideo.resolutionHeight) throw new Error('Enter a resolution for the export.');
       if (telemetryVideo.resolutionWidth <= 0 || telemetryVideo.resolutionHeight <= 0) throw new Error('Resolution must be greater than zero.');
       const resolutionLabel = `${telemetryVideo.resolutionWidth}x${telemetryVideo.resolutionHeight}`;
-      const backgroundColor = telemetryVideo.backgroundColor?.trim() || 'transparent';
+      const backgroundColor = resolveTelemetryBackgroundColor(telemetryVideo);
+      const backgroundMode = telemetryVideo.backgroundMode ?? 'transparent';
 
       const formData = buildTelemetryFormData(telemetryVideo, resolutionLabel, backgroundColor);
 
@@ -182,10 +191,10 @@
         estimatedSeconds = null;
       });
 
-      const fallbackName = deriveMp4Filename(telemetryVideo.gpxFile, 'telemetry.mp4');
+      const fallbackName = deriveTelemetryFallbackFilename(telemetryVideo.gpxFile, backgroundColor);
       const { blob, filename } = await requestFile(apiBase, '/api/v1/gpx/telemetry-video', formData, fallbackName);
       const downloadUrl = URL.createObjectURL(blob);
-      telemetryVideo = { ...telemetryVideo, status: 'success', downloadUrl, filename, backgroundColor, message: `Rendered ${filename} (${resolutionLabel}, ${telemetryVideo.durationSeconds}s).` };
+      telemetryVideo = { ...telemetryVideo, status: 'success', downloadUrl, filename, backgroundMode, backgroundColor, message: `Rendered ${filename} (${resolutionLabel}, ${telemetryVideo.durationSeconds}s).` };
     } catch (error) {
       telemetryVideo = { ...telemetryVideo, status: 'error', error: parseError(error) };
     } finally {

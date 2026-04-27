@@ -35,7 +35,7 @@
       <h2>Telemetry video</h2>
     </header>
     <ul class="about-list">
-      <li>Render telemetry-only MP4 overlays directly from a GPX file.</li>
+      <li>Render telemetry overlays directly from a GPX file.</li>
       <li>Choose elevation value, speed, heart rate, or an elevation graph.</li>
       <li>Set duration, frame rate, size, and background color for compositing over footage.</li>
     </ul>

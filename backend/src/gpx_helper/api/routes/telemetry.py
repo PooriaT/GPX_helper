@@ -73,7 +73,7 @@ def render_telemetry_video(
     fps: float = Form(DEFAULT_FPS),
     resolution: str = Form(...),
     telemetry_type: str = Form(...),
-    background_color: str = Form("transparent"),
+    background_color: str | None = Form(None),
 ) -> StreamingResponse:
     gpx_file = validate_upload(gpx_file, "gpx_file")
     width_px, height_px = _parse_video_dimensions(duration_seconds, fps, resolution)

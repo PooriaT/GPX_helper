@@ -110,7 +110,10 @@ def parse_background_color(background_color: str | None) -> tuple[int, int, int,
     normalized = background_color.strip().lower()
     if not normalized or normalized == "transparent":
         return (0, 0, 0, 0)
-    rgb = ImageColor.getrgb(normalized)
+    try:
+        rgb = ImageColor.getrgb(normalized)
+    except ValueError as exc:
+        raise ValueError(f"Invalid background_color: {background_color}") from exc
     return rgb[0], rgb[1], rgb[2], 255
 
 
@@ -312,6 +315,48 @@ def _project_graph_points(
     return points
 
 
+def elevation_extrema(values: np.ndarray) -> tuple[tuple[int, float], tuple[int, float]]:
+    if values.size == 0:
+        raise ValueError("Elevation values are required.")
+    min_index = int(np.argmin(values))
+    max_index = int(np.argmax(values))
+    return (min_index, float(values[min_index])), (max_index, float(values[max_index]))
+
+
+def _draw_graph_point_label(
+    draw: ImageDraw.ImageDraw,
+    *,
+    point: tuple[float, float],
+    label: str,
+    width_px: int,
+    height_px: int,
+    font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+    fill: tuple[int, int, int, int],
+) -> None:
+    marker_x, marker_y = point
+    offset = max(8, int(height_px * 0.02))
+    bbox = draw.textbbox((0, 0), label, font=font, stroke_width=2)
+    text_width = bbox[2] - bbox[0]
+    text_height = bbox[3] - bbox[1]
+    label_x = marker_x + offset
+    if marker_x > width_px * 0.55:
+        label_x = marker_x - offset - text_width
+    label_y = marker_y - offset - text_height
+    if label_y < offset:
+        label_y = marker_y + offset
+    label_x = max(offset, min(label_x, width_px - text_width - offset))
+    label_y = max(offset, min(label_y, height_px - text_height - offset))
+    draw.text(
+        (label_x, label_y),
+        label,
+        font=font,
+        fill=fill,
+        anchor="la",
+        stroke_width=2,
+        stroke_fill=(0, 0, 0, 210),
+    )
+
+
 def _render_elevation_graph(
     image: Image.Image,
     *,
@@ -355,17 +400,30 @@ def _render_elevation_graph(
         width=max(1, int(height_px * 0.0035)),
     )
 
-    title_font = _build_font(max(18, int(height_px * 0.04)))
+    label_font = _build_font(max(14, int(height_px * 0.032)))
     value_font = _build_font(max(22, int(height_px * 0.055)))
-    draw.text(
-        (padding_x, padding_y * 0.45),
-        "ELEVATION",
-        font=title_font,
-        fill=accent_color,
-        anchor="la",
-        stroke_width=2,
-        stroke_fill=(0, 0, 0, 170),
-    )
+    min_point, max_point = elevation_extrema(elevations)
+    extreme_radius = max(4, int(height_px * 0.009))
+    for label_prefix, (index, value) in (("min", min_point), ("max", max_point)):
+        extreme_x, extreme_y = chart_points[index]
+        draw.ellipse(
+            [
+                (extreme_x - extreme_radius, extreme_y - extreme_radius),
+                (extreme_x + extreme_radius, extreme_y + extreme_radius),
+            ],
+            fill=text_color,
+            outline=(0, 0, 0, 210),
+            width=max(1, int(height_px * 0.003)),
+        )
+        _draw_graph_point_label(
+            draw,
+            point=(extreme_x, extreme_y),
+            label=f"{label_prefix} {value:.0f} m",
+            width_px=width_px,
+            height_px=height_px,
+            font=label_font,
+            fill=text_color,
+        )
     draw.text(
         (padding_x, height_px - padding_y * 0.25),
         f"{current_value:.0f} m",

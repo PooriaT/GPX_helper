@@ -8,11 +8,26 @@
 
   export let onSubmit;
   export let onGpxChange;
+
+  $: backgroundMode =
+    telemetryVideo.backgroundMode ?? (telemetryVideo.backgroundColor?.trim().toLowerCase() === 'transparent' ? 'transparent' : 'custom');
+  $: colorPickerValue = /^#[0-9a-f]{6}$/i.test(telemetryVideo.backgroundColor ?? '') ? telemetryVideo.backgroundColor : '#000000';
+
+  function selectBackgroundMode(mode) {
+    telemetryVideo.backgroundMode = mode;
+    if (mode === 'custom' && (!telemetryVideo.backgroundColor || telemetryVideo.backgroundColor.trim().toLowerCase() === 'transparent')) {
+      telemetryVideo.backgroundColor = '#000000';
+    }
+  }
+
+  function handleColorPicker(event) {
+    telemetryVideo.backgroundColor = event.currentTarget.value;
+  }
 </script>
 
 <TaskContainer
   title="Generate telemetry video"
-  description="Upload a GPX track, select the telemetry overlay, review the export settings, then render the MP4."
+  description="Upload a GPX track, select the telemetry overlay, review the export settings, then render the overlay."
 >
   <form class="form-grid" on:submit|preventDefault={onSubmit}>
     <section class="step-section">
@@ -104,17 +119,54 @@
           <div class="options-group">
             <p class="options-title">Compositing</p>
             <div class="options-stack">
-              <label>
-                Background color
-                <input type="text" bind:value={telemetryVideo.backgroundColor} placeholder="transparent" list="background-color-presets" />
-                <datalist id="background-color-presets">
-                  <option value="transparent"></option>
-                  <option value="#000000"></option>
-                  <option value="#ffffff"></option>
-                </datalist>
-              </label>
+              <div>
+                <span class="field-label">Background mode</span>
+                <div class="mode-selector background-mode-selector" role="group" aria-label="Background mode">
+                  <button
+                    type="button"
+                    class:mode-active={backgroundMode === 'transparent'}
+                    aria-pressed={backgroundMode === 'transparent'}
+                    on:click={() => selectBackgroundMode('transparent')}
+                  >
+                    Transparent
+                  </button>
+                  <button
+                    type="button"
+                    class:mode-active={backgroundMode === 'custom'}
+                    aria-pressed={backgroundMode === 'custom'}
+                    on:click={() => selectBackgroundMode('custom')}
+                  >
+                    Custom color
+                  </button>
+                </div>
+              </div>
+              {#if backgroundMode === 'custom'}
+                <div class="options-stack">
+                  <span class="field-label">Custom background color</span>
+                  <div class="color-control">
+                    <input
+                      class="color-picker"
+                      type="color"
+                      value={colorPickerValue}
+                      on:input={handleColorPicker}
+                      style={`--picker-color: ${colorPickerValue}`}
+                      aria-label="Pick custom background color"
+                    />
+                    <span class="color-value">{telemetryVideo.backgroundColor}</span>
+                  </div>
+                  <label>
+                    Color value
+                    <input type="text" bind:value={telemetryVideo.backgroundColor} placeholder="#000000" list="background-color-presets" />
+                  </label>
+                  <datalist id="background-color-presets">
+                    <option value="#000000"></option>
+                    <option value="#ffffff"></option>
+                    <option value="red"></option>
+                  </datalist>
+                </div>
+              {/if}
               <p class="hint">
-                Default is <code>transparent</code>. Standard MP4 exports are usually opaque, so many players will display transparent regions as black.
+                Transparent background is recommended for compositing over cycling, running, or activity footage.
               </p>
             </div>
           </div>
@@ -127,7 +179,7 @@
         <span class="step-number">4</span>
         <div>
           <h3>Execute action</h3>
-          <p class="muted-text">Render the telemetry overlay as an MP4.</p>
+          <p class="muted-text">Render telemetry overlay.</p>
         </div>
       </div>
       <div class="form-actions">

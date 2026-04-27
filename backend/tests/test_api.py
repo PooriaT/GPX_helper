@@ -446,6 +446,39 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(captured["width_px"], 640)
         self.assertEqual(captured["height_px"], 640)
 
+    def test_telemetry_video_omitted_background_defaults_to_webm(self) -> None:
+        files = {
+            "gpx_file": ("ride.gpx", _build_gpx_with_telemetry(), "application/gpx+xml"),
+        }
+        data = {
+            "duration_seconds": "20",
+            "fps": "30",
+            "resolution": "640x640",
+            "telemetry_type": "heart_rate",
+        }
+        fake_video = b"telemetry-default-webm"
+        captured = {}
+
+        def _fake_telemetry_animation(points, **kwargs):
+            captured.update(kwargs)
+            with open(kwargs["output_path"], "wb") as f:
+                f.write(fake_video)
+
+        with mock.patch(
+            "gpx_helper.api.routes.telemetry.create_telemetry_animation",
+            side_effect=_fake_telemetry_animation,
+        ):
+            response = self.client.post("/api/v1/gpx/telemetry-video", files=files, data=data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["content-type"], "video/webm")
+        self.assertEqual(response.content, fake_video)
+        self.assertIn(
+            "attachment; filename=ride-heart_rate.webm",
+            response.headers["content-disposition"],
+        )
+        self.assertIsNone(captured["background_color"])
+
     def test_telemetry_video_opaque_background_returns_mp4(self) -> None:
         files = {
             "gpx_file": ("ride.gpx", _build_gpx_with_telemetry(), "application/gpx+xml"),
@@ -494,6 +527,36 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("heart rate data", response.json()["detail"])
 
+    def test_telemetry_video_elevation_graph_success(self) -> None:
+        files = {
+            "gpx_file": ("ride.gpx", _build_gpx_with_telemetry(), "application/gpx+xml"),
+        }
+        data = {
+            "duration_seconds": "20",
+            "fps": "30",
+            "resolution": "640x640",
+            "telemetry_type": "elevation_graph",
+            "background_color": "transparent",
+        }
+        fake_video = b"elevation-graph-webm"
+        captured = {}
+
+        def _fake_telemetry_animation(points, **kwargs):
+            captured.update(kwargs)
+            with open(kwargs["output_path"], "wb") as f:
+                f.write(fake_video)
+
+        with mock.patch(
+            "gpx_helper.api.routes.telemetry.create_telemetry_animation",
+            side_effect=_fake_telemetry_animation,
+        ):
+            response = self.client.post("/api/v1/gpx/telemetry-video", files=files, data=data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["content-type"], "video/webm")
+        self.assertEqual(response.content, fake_video)
+        self.assertEqual(captured["telemetry_type"], "elevation_graph")
+
     def test_telemetry_video_rejects_invalid_background_color(self) -> None:
         files = {
             "gpx_file": ("ride.gpx", _build_gpx_with_telemetry(), "application/gpx+xml"),
@@ -509,6 +572,7 @@ class ApiTests(unittest.TestCase):
         response = self.client.post("/api/v1/gpx/telemetry-video", files=files, data=data)
 
         self.assertEqual(response.status_code, 400)
+        self.assertIn("Invalid background_color", response.json()["detail"])
 
     def test_telemetry_video_estimate_success(self) -> None:
         files = {
