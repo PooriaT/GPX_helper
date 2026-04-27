@@ -6,13 +6,12 @@
   import TaskSelector from './components/TaskSelector.svelte';
   import TelemetryPage from './components/TelemetryPage.svelte';
   import TrimPage from './components/TrimPage.svelte';
-  import { parseGpxDurationFromText, parseGpxTimeRangeFromText } from './gpx-metadata';
-  import { loadEmbeddedVideoStart } from './video-metadata';
+  import { DEFAULT_API_BASE, MAP_TILE_OPTIONS, PAGE_DESCRIPTIONS, PAGES, TASKS, TELEMETRY_TYPE_OPTIONS } from './constants';
   import { cloneFormData, deriveMp4Filename, parseError, requestEta, requestFile } from './utils/api';
-  import { readFileText, loadVideoDuration } from './utils/files';
-  import { formatDurationLabel, formatUtcLabel, toIsoString, toLocalDateTimeValue } from './utils/time';
+  import { buildMapAnimationFormData, buildTelemetryFormData, buildTrimByTimeFormData, buildTrimByVideosFormData } from './utils/formData';
+  import { formatDurationLabel, toIsoString, toLocalDateTimeValue } from './utils/time';
+  import { buildVideoClip, deriveVideoTimes, ensureRangeFitsGpx, ensureVideosFitGpx, parseGpxDuration } from './utils/workflows';
 
-  const DEFAULT_API_BASE = (import.meta.env.VITE_API_BASE ?? 'http://localhost:8000').replace(/\/$/, '');
   let apiBase = DEFAULT_API_BASE;
 
   let trimByTime = { startLocal: '', endLocal: '', gpxFile: null, videoFile: null, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
@@ -20,35 +19,11 @@
   let mapAnimation = { gpxFile: null, durationSeconds: 45, fps: 30, resolutionWidth: 1024, resolutionHeight: 1024, tileType: '', markerColor: '#0ea5e9', trailColor: '#0ea5e9', fullTrailColor: '#111827', fullTrailOpacity: 0.8, markerSize: 6, lineWidth: 2.5, lineOpacity: 1, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
   let telemetryVideo = { gpxFile: null, durationSeconds: 4, fps: 30, resolutionWidth: 1024, resolutionHeight: 1024, telemetryType: 'elevation_value', backgroundColor: 'transparent', status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
 
-  const mapTileOptions = [
-    { value: '', label: 'Backend default (MAP_TILE_URL_TEMPLATE)' },
-    { value: 'osm', label: 'OpenStreetMap (Standard)' },
-    { value: 'cyclosm', label: 'CyclOSM' },
-    { value: 'opentopomap', label: 'OpenTopoMap (Topo)' }
-  ];
-  const telemetryTypeOptions = [
-    { value: 'elevation_value', label: 'Elevation value' },
-    { value: 'speed', label: 'Speed' },
-    { value: 'heart_rate', label: 'Heart rate' },
-    { value: 'elevation_graph', label: 'Elevation graph' }
-  ];
-  const tasks = [
-    { id: 'trim', href: '#/trim', label: 'Trim GPX', description: 'Cut a track by timestamps or split it around recorded videos.' },
-    { id: 'animation', href: '#/animation', label: 'Create route animation', description: 'Render a map-based MP4 animation from a GPX route.' },
-    { id: 'telemetry', href: '#/telemetry', label: 'Generate telemetry video', description: 'Export an MP4 overlay with speed, elevation, or graph data.' }
-  ];
-  const pages = [
-    { id: 'trim', href: '#/trim', label: 'Trim GPX' },
-    { id: 'animation', href: '#/animation', label: 'Route animation' },
-    { id: 'telemetry', href: '#/telemetry', label: 'Telemetry video' },
-    { id: 'about', href: '#/about', label: 'About' }
-  ];
-  const pageDescriptions = {
-    trim: 'Trim tracks by exact times or split them from video metadata.',
-    animation: 'Render a clean MP4 route animation from a GPX track.',
-    telemetry: 'Create telemetry-only videos for overlays and compositing.',
-    about: 'A quick overview of the tools available in GPX Helper.'
-  };
+  const mapTileOptions = MAP_TILE_OPTIONS;
+  const telemetryTypeOptions = TELEMETRY_TYPE_OPTIONS;
+  const tasks = TASKS;
+  const pages = PAGES;
+  const pageDescriptions = PAGE_DESCRIPTIONS;
   const defaultPage = pages[0].id;
 
   let activeRequestLabel = '';
@@ -97,64 +72,6 @@
     estimatedSeconds = null;
   }
 
-  async function deriveVideoTimes(file) {
-    const [durationSeconds, start] = await Promise.all([loadVideoDuration(file), loadEmbeddedVideoStart(file)]);
-    const end = new Date(start.getTime() + durationSeconds * 1000);
-    return { durationSeconds, start, end };
-  }
-
-  async function buildVideoClip(file, index) {
-    const { durationSeconds, start, end } = await deriveVideoTimes(file);
-    return {
-      id: `${file.name}-${file.size}-${index}`,
-      name: file.name,
-      durationSeconds,
-      startIso: start.toISOString(),
-      endIso: end.toISOString(),
-      startLocal: toLocalDateTimeValue(start),
-      endLocal: toLocalDateTimeValue(end)
-    };
-  }
-
-  async function parseGpxDuration(file) {
-    if (!file) return null;
-    const text = await readFileText(file);
-    return parseGpxDurationFromText(text);
-  }
-
-  async function parseGpxTimeRange(file) {
-    if (!file) return null;
-    const text = await readFileText(file);
-    return parseGpxTimeRangeFromText(text);
-  }
-
-  function buildVideoRangeError(label, start, end, gpxRange) {
-    return `${label} spans ${formatUtcLabel(start)} to ${formatUtcLabel(end)}, but the GPX track only covers ${formatUtcLabel(gpxRange.start)} to ${formatUtcLabel(gpxRange.end)}.`;
-  }
-
-  async function ensureRangeFitsGpx(label, start, end, gpxFile) {
-    if (!gpxFile) return;
-    const gpxRange = await parseGpxTimeRange(gpxFile);
-    if (!gpxRange) throw new Error('The GPX file does not contain readable timestamps.');
-    if (start < gpxRange.start || end > gpxRange.end) throw new Error(buildVideoRangeError(label, start, end, gpxRange));
-  }
-
-  async function ensureVideosFitGpx(clips, gpxFile) {
-    if (!clips.length || !gpxFile) return;
-    const gpxRange = await parseGpxTimeRange(gpxFile);
-    if (!gpxRange) throw new Error('The GPX file does not contain readable timestamps.');
-
-    const mismatchedClip = clips.find((clip) => {
-      const start = new Date(clip.startIso);
-      const end = new Date(clip.endIso);
-      return start < gpxRange.start || end > gpxRange.end;
-    });
-
-    if (mismatchedClip) {
-      throw new Error(buildVideoRangeError(`Video "${mismatchedClip.name}"`, new Date(mismatchedClip.startIso), new Date(mismatchedClip.endIso), gpxRange));
-    }
-  }
-
   async function submitTrimByTime() {
     if (trimByTime.downloadUrl) URL.revokeObjectURL(trimByTime.downloadUrl);
     startRequest('Trimming GPX by time...');
@@ -169,10 +86,7 @@
       if (startDate >= endDate) throw new Error('Start time must be before end time.');
       await ensureRangeFitsGpx('Selected trim range', startDate, endDate, trimByTime.gpxFile);
 
-      const formData = new FormData();
-      formData.append('gpx_file', trimByTime.gpxFile);
-      formData.append('start_time', startIso);
-      formData.append('end_time', endIso);
+      const formData = buildTrimByTimeFormData(trimByTime.gpxFile, startIso, endIso);
 
       const { blob, filename } = await requestFile(apiBase, '/api/v1/gpx/trim-by-time', formData, 'trimmed.gpx');
       const downloadUrl = URL.createObjectURL(blob);
@@ -194,9 +108,7 @@
       if (!trimByVideos.clips.length) throw new Error('Add at least one video file.');
       await ensureVideosFitGpx(trimByVideos.clips, trimByVideos.gpxFile);
 
-      const formData = new FormData();
-      formData.append('gpx_file', trimByVideos.gpxFile);
-      formData.append('clips_json', JSON.stringify(trimByVideos.clips.map((clip) => ({ start_time: clip.startIso, end_time: clip.endIso, duration_seconds: clip.durationSeconds }))));
+      const formData = buildTrimByVideosFormData(trimByVideos.gpxFile, trimByVideos.clips);
 
       const { blob, filename } = await requestFile(apiBase, '/api/v1/gpx/trim-by-videos', formData, 'trimmed-gpx-files.zip');
       const downloadUrl = URL.createObjectURL(blob);
@@ -225,19 +137,7 @@
       if (mapAnimation.resolutionWidth <= 0 || mapAnimation.resolutionHeight <= 0) throw new Error('Resolution must be greater than zero.');
       const resolutionLabel = `${mapAnimation.resolutionWidth}x${mapAnimation.resolutionHeight}`;
 
-      const formData = new FormData();
-      formData.append('gpx_file', mapAnimation.gpxFile);
-      formData.append('duration_seconds', String(mapAnimation.durationSeconds));
-      formData.append('fps', String(mapAnimation.fps));
-      formData.append('resolution', resolutionLabel);
-      formData.append('marker_color', mapAnimation.markerColor);
-      formData.append('trail_color', mapAnimation.trailColor);
-      formData.append('full_trail_color', mapAnimation.fullTrailColor);
-      formData.append('full_trail_opacity', String(mapAnimation.fullTrailOpacity));
-      formData.append('marker_size', String(mapAnimation.markerSize));
-      formData.append('line_width', String(mapAnimation.lineWidth));
-      formData.append('line_opacity', String(mapAnimation.lineOpacity));
-      if (mapAnimation.tileType) formData.append('tile_type', mapAnimation.tileType);
+      const formData = buildMapAnimationFormData(mapAnimation, resolutionLabel);
 
       requestEta(apiBase, '/api/v1/gpx/map-animate/estimate', cloneFormData(formData)).then((eta) => {
         estimatedSeconds = eta;
@@ -274,13 +174,7 @@
       const resolutionLabel = `${telemetryVideo.resolutionWidth}x${telemetryVideo.resolutionHeight}`;
       const backgroundColor = telemetryVideo.backgroundColor?.trim() || 'transparent';
 
-      const formData = new FormData();
-      formData.append('gpx_file', telemetryVideo.gpxFile);
-      formData.append('duration_seconds', String(telemetryVideo.durationSeconds));
-      formData.append('fps', String(telemetryVideo.fps));
-      formData.append('resolution', resolutionLabel);
-      formData.append('telemetry_type', telemetryVideo.telemetryType);
-      formData.append('background_color', backgroundColor);
+      const formData = buildTelemetryFormData(telemetryVideo, resolutionLabel, backgroundColor);
 
       requestEta(apiBase, '/api/v1/gpx/telemetry-video/estimate', cloneFormData(formData)).then((eta) => {
         estimatedSeconds = eta;

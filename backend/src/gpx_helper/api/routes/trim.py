@@ -4,13 +4,13 @@ from io import BytesIO
 import tempfile
 import zipfile
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import StreamingResponse
 
+from gpx_helper.api.utils.gpx import crop_file_by_time, ensure_within_bounds, get_time_bounds
 from gpx_helper.api.utils.responses import stream_gpx, stream_payload
 from gpx_helper.api.utils.uploads import validate_upload, write_upload_to_file
 from gpx_helper.api.utils.validation import parse_request_times, parse_video_clips_payload, parse_positive
-from gpx_helper.gpx_splitter import crop_gpx_by_time, get_gpx_time_range
 
 router = APIRouter()
 
@@ -28,10 +28,7 @@ def trim_by_time(
         suffix=".gpx"
     ) as output_file:
         write_upload_to_file(gpx_file, input_file, "GPX")
-        try:
-            crop_gpx_by_time(input_file.name, start_dt, end_dt, output_file.name)
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        crop_file_by_time(input_file.name, start_dt, end_dt, output_file.name)
         output_file.seek(0)
         return stream_gpx(output_file.read(), "trimmed.gpx")
 
@@ -51,20 +48,15 @@ def trim_by_video(
         suffix=".gpx"
     ) as gpx_output:
         write_upload_to_file(gpx_file, gpx_input, "GPX")
-        try:
-            gpx_start, gpx_end = get_gpx_time_range(gpx_input.name)
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-        if start_dt < gpx_start or end_dt > gpx_end:
-            raise HTTPException(
-                status_code=400,
-                detail="Video timestamps fall outside GPX time range",
-            )
-        try:
-            crop_gpx_by_time(gpx_input.name, start_dt, end_dt, gpx_output.name)
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        gpx_start, gpx_end = get_time_bounds(gpx_input.name)
+        ensure_within_bounds(
+            start_dt,
+            end_dt,
+            gpx_start,
+            gpx_end,
+            "Video timestamps fall outside GPX time range",
+        )
+        crop_file_by_time(gpx_input.name, start_dt, end_dt, gpx_output.name)
 
         gpx_output.seek(0)
         return stream_gpx(gpx_output.read(), "trimmed.gpx")
@@ -80,27 +72,23 @@ def trim_by_videos(
 
     with tempfile.NamedTemporaryFile(suffix=".gpx") as gpx_input:
         write_upload_to_file(gpx_file, gpx_input, "GPX")
-        try:
-            gpx_start, gpx_end = get_gpx_time_range(gpx_input.name)
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        gpx_start, gpx_end = get_time_bounds(gpx_input.name)
 
         zip_buffer = BytesIO()
         with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
             for index, clip in enumerate(clips, start=1):
                 start_dt = clip["start_dt"]
                 end_dt = clip["end_dt"]
-                if start_dt < gpx_start or end_dt > gpx_end:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Clip {index} timestamps fall outside GPX time range",
-                    )
+                ensure_within_bounds(
+                    start_dt,
+                    end_dt,
+                    gpx_start,
+                    gpx_end,
+                    f"Clip {index} timestamps fall outside GPX time range",
+                )
 
                 with tempfile.NamedTemporaryFile(suffix=".gpx") as gpx_output:
-                    try:
-                        crop_gpx_by_time(gpx_input.name, start_dt, end_dt, gpx_output.name)
-                    except Exception as exc:
-                        raise HTTPException(status_code=400, detail=str(exc)) from exc
+                    crop_file_by_time(gpx_input.name, start_dt, end_dt, gpx_output.name)
 
                     gpx_output.seek(0)
                     archive.writestr(f"{index}.gpx", gpx_output.read())

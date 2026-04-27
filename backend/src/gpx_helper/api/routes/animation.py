@@ -6,6 +6,7 @@ import tempfile
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from gpx_helper.api.utils.exceptions import as_bad_request
 from gpx_helper.api.utils.responses import stream_payload
 from gpx_helper.api.utils.uploads import validate_upload, write_upload_to_file
 from gpx_helper.api.utils.validation import (
@@ -85,13 +86,16 @@ def estimate_map_animation(
 
     with tempfile.NamedTemporaryFile(suffix=".gpx") as gpx_input:
         write_upload_to_file(gpx_file, gpx_input, "GPX")
-        try:
-            lats, lons = load_gpx_points(gpx_input.name)
-            estimated_seconds = estimate_animation_seconds(
-                lats, lons, width_px, height_px, duration_seconds, fps=fps
-            )
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        lats, lons = as_bad_request(load_gpx_points, gpx_input.name)
+        estimated_seconds = as_bad_request(
+            estimate_animation_seconds,
+            lats,
+            lons,
+            width_px,
+            height_px,
+            duration_seconds,
+            fps=fps,
+        )
 
     return JSONResponse({"estimated_seconds": round(float(estimated_seconds), 2)})
 
@@ -133,37 +137,39 @@ def animate_gpx_route(
     ) as video_output:
         write_upload_to_file(gpx_file, gpx_input, "GPX")
 
-        try:
-            lats, lons = load_gpx_points(gpx_input.name)
-            xs, ys = latlon_to_web_mercator(lats, lons)
-            xs, ys, frame_indices, total_frames, fps = prepare_animation_series(
-                xs, ys, duration_seconds, fps=fps
-            )
-            create_animation(
-                xs,
-                ys,
-                frame_indices,
-                total_frames,
-                fps,
-                width_px,
-                height_px,
-                video_output.name,
-                min_lat=min(lats),
-                max_lat=max(lats),
-                min_lon=min(lons),
-                max_lon=max(lons),
-                marker_color=marker_color,
-                animated_line_color=trail_color,
-                full_line_color=full_trail_color,
-                full_line_opacity=full_trail_opacity,
-                line_width=line_width,
-                animated_line_opacity=line_opacity,
-                marker_size=marker_size,
-                tile_template=tile_template,
-                tile_subdomains=tile_subdomains,
-            )
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        lats, lons = as_bad_request(load_gpx_points, gpx_input.name)
+        xs, ys = as_bad_request(latlon_to_web_mercator, lats, lons)
+        xs, ys, frame_indices, total_frames, fps = as_bad_request(
+            prepare_animation_series,
+            xs,
+            ys,
+            duration_seconds,
+            fps=fps,
+        )
+        as_bad_request(
+            create_animation,
+            xs,
+            ys,
+            frame_indices,
+            total_frames,
+            fps,
+            width_px,
+            height_px,
+            video_output.name,
+            min_lat=min(lats),
+            max_lat=max(lats),
+            min_lon=min(lons),
+            max_lon=max(lons),
+            marker_color=marker_color,
+            animated_line_color=trail_color,
+            full_line_color=full_trail_color,
+            full_line_opacity=full_trail_opacity,
+            line_width=line_width,
+            animated_line_opacity=line_opacity,
+            marker_size=marker_size,
+            tile_template=tile_template,
+            tile_subdomains=tile_subdomains,
+        )
 
         video_output.seek(0)
         upload_name = os.path.basename(gpx_file.filename or "")

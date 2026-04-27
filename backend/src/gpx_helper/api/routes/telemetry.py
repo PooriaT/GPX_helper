@@ -6,6 +6,7 @@ import tempfile
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from gpx_helper.api.utils.exceptions import as_bad_request
 from gpx_helper.api.utils.responses import stream_payload
 from gpx_helper.api.utils.uploads import validate_upload, write_upload_to_file
 from gpx_helper.api.utils.validation import parse_positive, validate_resolution_dims
@@ -52,14 +53,15 @@ def estimate_telemetry_video(
 
     with tempfile.NamedTemporaryFile(suffix=".gpx") as gpx_input:
         write_upload_to_file(gpx_file, gpx_input, "GPX")
-        try:
-            telemetry_points = load_gpx_telemetry(gpx_input.name)
-            ensure_telemetry_type_supported(telemetry_points, resolved_type)
-            estimated_seconds = estimate_telemetry_seconds(
-                duration_seconds, width_px, height_px, fps=fps
-            )
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        telemetry_points = as_bad_request(load_gpx_telemetry, gpx_input.name)
+        as_bad_request(ensure_telemetry_type_supported, telemetry_points, resolved_type)
+        estimated_seconds = as_bad_request(
+            estimate_telemetry_seconds,
+            duration_seconds,
+            width_px,
+            height_px,
+            fps=fps,
+        )
 
     return JSONResponse({"estimated_seconds": round(float(estimated_seconds), 2)})
 
@@ -93,21 +95,19 @@ def render_telemetry_video(
         suffix=output_suffix
     ) as video_output:
         write_upload_to_file(gpx_file, gpx_input, "GPX")
-        try:
-            telemetry_points = load_gpx_telemetry(gpx_input.name)
-            ensure_telemetry_type_supported(telemetry_points, resolved_type)
-            create_telemetry_animation(
-                telemetry_points,
-                duration_seconds=duration_seconds,
-                fps=fps,
-                width_px=width_px,
-                height_px=height_px,
-                telemetry_type=resolved_type,
-                background_color=background_color,
-                output_path=video_output.name,
-            )
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        telemetry_points = as_bad_request(load_gpx_telemetry, gpx_input.name)
+        as_bad_request(ensure_telemetry_type_supported, telemetry_points, resolved_type)
+        as_bad_request(
+            create_telemetry_animation,
+            telemetry_points,
+            duration_seconds=duration_seconds,
+            fps=fps,
+            width_px=width_px,
+            height_px=height_px,
+            telemetry_type=resolved_type,
+            background_color=background_color,
+            output_path=video_output.name,
+        )
 
         video_output.seek(0)
         upload_name = os.path.basename(gpx_file.filename or "")
