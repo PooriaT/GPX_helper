@@ -43,3 +43,8 @@ export function buildTelemetryFormData(telemetryVideo, resolutionLabel, backgrou
   formData.append('background_color', backgroundColor);
   return formData;
 }
+
+export function resolveTelemetryBackgroundColor(telemetryVideo) {
+  const backgroundMode = telemetryVideo.backgroundMode ?? 'transparent';
+  return backgroundMode === 'transparent' ? 'transparent' : telemetryVideo.backgroundColor?.trim() || '#000000';
+}

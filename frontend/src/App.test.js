@@ -4,7 +4,25 @@ import App from './App.svelte';
 describe('App', () => {
   afterEach(() => {
     window.history.replaceState({}, '', '/');
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
+
+  function buildTelemetryGpxFile() {
+    return new File(
+      [
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1">
+          <trk><trkseg>
+            <trkpt lat="49.0" lon="-123.0"><ele>10</ele><time>2024-01-01T00:00:00Z</time></trkpt>
+            <trkpt lat="49.1" lon="-123.1"><ele>20</ele><time>2024-01-01T00:00:10Z</time></trkpt>
+          </trkseg></trk>
+        </gpx>`
+      ],
+      'track.gpx',
+      { type: 'application/gpx+xml' }
+    );
+  }
 
   it('renders the trim page by default with header navigation', () => {
     render(App);
@@ -95,7 +113,10 @@ describe('App', () => {
       })
     ).toHaveAttribute('aria-current', 'page');
     expect(screen.getByLabelText(/Telemetry video type/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Background color/i)).toBeInTheDocument();
+    await fireEvent.click(screen.getByText(/Advanced settings/i));
+    expect(screen.getByText(/Background mode/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Transparent$/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /^Custom color$/i })).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByRole('button', { name: /Render telemetry video/i })).toBeInTheDocument();
   });
 
@@ -109,19 +130,7 @@ describe('App', () => {
 
     const fileInput = screen.getByLabelText(/^GPX file$/i);
     const durationInput = screen.getByLabelText(/Duration \(seconds\)/i);
-    const gpxFile = new File(
-      [
-        `<?xml version="1.0" encoding="UTF-8"?>
-        <gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1">
-          <trk><trkseg>
-            <trkpt lat="49.0" lon="-123.0"><time>2024-01-01T00:00:00Z</time></trkpt>
-            <trkpt lat="49.1" lon="-123.1"><time>2024-01-01T00:00:10Z</time></trkpt>
-          </trkseg></trk>
-        </gpx>`
-      ],
-      'track.gpx',
-      { type: 'application/gpx+xml' }
-    );
+    const gpxFile = buildTelemetryGpxFile();
 
     await fireEvent.change(fileInput, { target: { files: [gpxFile] } });
 

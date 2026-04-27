@@ -10,7 +10,7 @@ also includes a Svelte + Vite frontend in `frontend/` and a Python/FastAPI backe
 - Falls back to file modification time when metadata is missing, with clear warnings.
 - Works with GPX files that include timezone-aware timestamps (UTC recommended).
 - Renders GPX tracks into MP4 map animations with OpenStreetMap tiles.
-- Supports multi-clip trimming and telemetry video rendering (heart rate, speed, elevation).
+- Supports multi-clip trimming and telemetry overlay rendering (heart rate, speed, elevation).
 
 ## Requirements
 - Python 3.13+
@@ -27,7 +27,7 @@ Clone or download this repository. Install the system tools, then install projec
 brew install exiftool  # macOS
 sudo apt-get update && sudo apt-get install -y libimage-exiftool-perl  # Ubuntu/Debian
 
-# ffmpeg is required to write MP4 output
+# ffmpeg is required to write video output
 brew install ffmpeg  # macOS
 sudo apt-get install -y ffmpeg  # Ubuntu/Debian
 
@@ -122,6 +122,9 @@ curl -X POST http://localhost:8000/api/v1/gpx/telemetry-video \
   -F telemetry_type=heart_rate \
   -F background_color=transparent \
   --output telemetry.webm
+
+# Transparent telemetry overlays use WebM with alpha. Use an opaque custom
+# background_color such as #000000 when you want an MP4 export.
 
 # Ask for telemetry render ETA (JSON response)
 curl -X POST http://localhost:8000/api/v1/gpx/telemetry-video/estimate \

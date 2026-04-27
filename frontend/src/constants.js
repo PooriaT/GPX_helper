@@ -17,7 +17,7 @@ export const TELEMETRY_TYPE_OPTIONS = [
 export const TASKS = [
   { id: 'trim', href: '#/trim', label: 'Trim GPX', description: 'Cut a track by timestamps or split it around recorded videos.' },
   { id: 'animation', href: '#/animation', label: 'Create route animation', description: 'Render a map-based MP4 animation from a GPX route.' },
-  { id: 'telemetry', href: '#/telemetry', label: 'Generate telemetry video', description: 'Export an MP4 overlay with speed, elevation, or graph data.' }
+  { id: 'telemetry', href: '#/telemetry', label: 'Generate telemetry video', description: 'Render telemetry overlays with speed, elevation, or graph data.' }
 ];
 
 export const PAGES = [
