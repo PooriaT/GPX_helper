@@ -15,6 +15,12 @@ describe('normalizeMapTileOptions', () => {
       ])
     ).toEqual([
       {
+        value: '',
+        label: 'Backend default (MAP_TILE_URL_TEMPLATE)',
+        previewUrl: undefined,
+        attribution: undefined
+      },
+      {
         value: 'esri_world_imagery',
         label: 'Satellite (Esri World Imagery)',
         previewUrl: 'https://example.test/esri-preview.png',
@@ -24,6 +30,6 @@ describe('normalizeMapTileOptions', () => {
   });
 
   it('ignores malformed map layer entries', () => {
-    expect(normalizeMapTileOptions([null, { key: 'osm' }, { label: 'Missing value' }, { key: '', value: '', label: 'Backend default (MAP_TILE_URL_TEMPLATE)' }])).toEqual([]);
+    expect(normalizeMapTileOptions([null, { key: 'osm' }, { label: 'Missing value' }, { key: '   ', value: '   ', label: 'Blank value' }])).toEqual([]);
   });
 });

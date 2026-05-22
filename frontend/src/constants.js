@@ -34,7 +34,8 @@ export function normalizeMapTileOptions(mapLayers) {
     .map((layer) => {
       const value = typeof layer?.value === 'string' ? layer.value : layer?.key;
       const label = layer?.label;
-      if (typeof value !== 'string' || !value.trim() || typeof label !== 'string' || !label.trim()) return null;
+      const hasValidValue = typeof value === 'string' && (value === '' || value.trim());
+      if (!hasValidValue || typeof label !== 'string' || !label.trim()) return null;
       return {
         value,
         label,
