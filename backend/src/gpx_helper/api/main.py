@@ -8,6 +8,7 @@ from gpx_helper.api.config import API_VERSION, DEFAULT_ALLOWED_ORIGINS
 from gpx_helper.api.routes.animation import router as animation_router
 from gpx_helper.api.routes.telemetry import router as telemetry_router
 from gpx_helper.api.routes.trim import router as trim_router
+from gpx_helper.map_layers import frontend_map_layers
 
 
 def create_app() -> FastAPI:
@@ -39,6 +40,7 @@ def create_app() -> FastAPI:
                     "POST /api/v1/gpx/telemetry-video/estimate",
                     "POST /api/v1/gpx/telemetry-video",
                 ],
+                "map_layers": frontend_map_layers(),
             }
         )
 
