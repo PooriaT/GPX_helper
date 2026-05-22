@@ -141,12 +141,19 @@ class MapAnimatorTests(unittest.TestCase):
             resolve_tile_provider("opentopomap"),
             ("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", ("a", "b", "c")),
         )
+        self.assertEqual(
+            resolve_tile_provider("esri_world_imagery"),
+            (
+                "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                (),
+            ),
+        )
 
     def test_empty_tile_provider_uses_backend_default(self) -> None:
         self.assertEqual(resolve_tile_provider(None), resolve_tile_provider(""))
 
     def test_invalid_tile_provider_lists_valid_keys(self) -> None:
-        with self.assertRaisesRegex(ValueError, "cyclosm, opentopomap, osm"):
+        with self.assertRaisesRegex(ValueError, "cyclosm, esri_world_imagery, opentopomap, osm"):
             resolve_tile_provider("bad-tile")
 
 

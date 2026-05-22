@@ -20,6 +20,12 @@ export const MAP_TILE_OPTIONS = [
     label: 'OpenTopoMap (Topo)',
     previewUrl: 'https://a.tile.opentopomap.org/12/654/1582.png',
     attribution: 'OpenTopoMap and OpenStreetMap contributors'
+  },
+  {
+    value: 'esri_world_imagery',
+    label: 'Satellite (Esri World Imagery)',
+    previewUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/12/1582/654',
+    attribution: 'Esri, Vantor, Earthstar Geographics, and the GIS User Community'
   }
 ];
 
