@@ -16,7 +16,7 @@
 
   let trimByTime = { startLocal: '', endLocal: '', gpxFile: null, videoFile: null, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
   let trimByVideos = { gpxFile: null, videoFiles: [], clips: [], totalDurationSeconds: 0, isPreparing: false, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
-  let mapAnimation = { gpxFile: null, durationSeconds: 45, fps: 30, resolutionWidth: 1024, resolutionHeight: 1024, tileType: '', markerColor: '#0ea5e9', trailColor: '#0ea5e9', fullTrailColor: '#111827', fullTrailOpacity: 0.8, markerSize: 6, lineWidth: 2.5, lineOpacity: 1, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
+  let mapAnimation = { gpxFile: null, durationSeconds: 45, fps: 30, resolutionWidth: 1024, resolutionHeight: 1024, tileType: MAP_TILE_OPTIONS[0]?.value ?? 'osm', markerColor: '#0ea5e9', trailColor: '#0ea5e9', fullTrailColor: '#111827', fullTrailOpacity: 0.8, markerSize: 6, lineWidth: 2.5, lineOpacity: 1, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
   let telemetryVideo = { gpxFile: null, durationSeconds: 4, fps: 30, resolutionWidth: 1024, resolutionHeight: 1024, telemetryType: 'elevation_value', backgroundMode: 'transparent', backgroundColor: '#000000', status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
 
   let mapTileOptions = MAP_TILE_OPTIONS;
@@ -80,7 +80,7 @@
       if (!nextOptions.length) return;
       mapTileOptions = nextOptions;
       if (!mapTileOptions.some((option) => option.value === mapAnimation.tileType)) {
-        mapAnimation = { ...mapAnimation, tileType: '' };
+        mapAnimation = { ...mapAnimation, tileType: mapTileOptions[0].value };
       }
     } catch (error) {
       mapTileOptions = MAP_TILE_OPTIONS;
