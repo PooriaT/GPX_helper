@@ -6,8 +6,8 @@
   import TaskSelector from './components/TaskSelector.svelte';
   import TelemetryPage from './components/TelemetryPage.svelte';
   import TrimPage from './components/TrimPage.svelte';
-  import { DEFAULT_API_BASE, MAP_TILE_OPTIONS, PAGE_DESCRIPTIONS, PAGES, TASKS, TELEMETRY_TYPE_OPTIONS } from './constants';
-  import { cloneFormData, deriveMp4Filename, parseError, requestEta, requestFile } from './utils/api';
+  import { DEFAULT_API_BASE, MAP_TILE_OPTIONS, PAGE_DESCRIPTIONS, PAGES, TASKS, TELEMETRY_TYPE_OPTIONS, normalizeMapTileOptions } from './constants';
+  import { cloneFormData, deriveMp4Filename, parseError, requestCapabilities, requestEta, requestFile } from './utils/api';
   import { buildMapAnimationFormData, buildTelemetryFormData, buildTrimByTimeFormData, buildTrimByVideosFormData, resolveTelemetryBackgroundColor } from './utils/formData';
   import { formatDurationLabel, toIsoString, toLocalDateTimeValue } from './utils/time';
   import { buildVideoClip, deriveVideoTimes, ensureRangeFitsGpx, ensureVideosFitGpx, parseGpxDuration } from './utils/workflows';
@@ -19,7 +19,7 @@
   let mapAnimation = { gpxFile: null, durationSeconds: 45, fps: 30, resolutionWidth: 1024, resolutionHeight: 1024, tileType: '', markerColor: '#0ea5e9', trailColor: '#0ea5e9', fullTrailColor: '#111827', fullTrailOpacity: 0.8, markerSize: 6, lineWidth: 2.5, lineOpacity: 1, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
   let telemetryVideo = { gpxFile: null, durationSeconds: 4, fps: 30, resolutionWidth: 1024, resolutionHeight: 1024, telemetryType: 'elevation_value', backgroundMode: 'transparent', backgroundColor: '#000000', status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
 
-  const mapTileOptions = MAP_TILE_OPTIONS;
+  let mapTileOptions = MAP_TILE_OPTIONS;
   const telemetryTypeOptions = TELEMETRY_TYPE_OPTIONS;
   const tasks = TASKS;
   const pages = PAGES;
@@ -54,6 +54,7 @@
 
   onMount(() => {
     syncPageFromHash(true);
+    loadCapabilities();
   });
 
   onDestroy(() => {
@@ -70,6 +71,20 @@
   function finishRequest() {
     activeRequestLabel = '';
     estimatedSeconds = null;
+  }
+
+  async function loadCapabilities() {
+    try {
+      const capabilities = await requestCapabilities(apiBase);
+      const nextOptions = normalizeMapTileOptions(capabilities?.map_layers);
+      if (!nextOptions.length) return;
+      mapTileOptions = nextOptions;
+      if (!mapTileOptions.some((option) => option.value === mapAnimation.tileType)) {
+        mapAnimation = { ...mapAnimation, tileType: '' };
+      }
+    } catch (error) {
+      mapTileOptions = MAP_TILE_OPTIONS;
+    }
   }
 
   function deriveTelemetryFallbackFilename(file, backgroundColor) {

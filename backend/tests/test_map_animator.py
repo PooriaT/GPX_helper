@@ -6,6 +6,7 @@ from unittest import mock
 from PIL import Image
 
 from gpx_helper import map_animator
+from gpx_helper.map_layers import resolve_tile_provider
 from gpx_helper.map_animator import (
     _composite_line_overlay,
     prepare_animation_data,
@@ -123,6 +124,30 @@ class MapAnimatorTests(unittest.TestCase):
         )
 
         self.assertEqual(composited.getpixel((5, 5)), (255, 255, 255, 255))
+
+    def test_existing_tile_provider_keys_resolve(self) -> None:
+        self.assertEqual(
+            resolve_tile_provider("osm"),
+            ("https://tile.openstreetmap.org/{z}/{x}/{y}.png", ()),
+        )
+        self.assertEqual(
+            resolve_tile_provider("cyclosm"),
+            (
+                "https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png",
+                ("a", "b", "c"),
+            ),
+        )
+        self.assertEqual(
+            resolve_tile_provider("opentopomap"),
+            ("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", ("a", "b", "c")),
+        )
+
+    def test_empty_tile_provider_uses_backend_default(self) -> None:
+        self.assertEqual(resolve_tile_provider(None), resolve_tile_provider(""))
+
+    def test_invalid_tile_provider_lists_valid_keys(self) -> None:
+        with self.assertRaisesRegex(ValueError, "cyclosm, opentopomap, osm"):
+            resolve_tile_provider("bad-tile")
 
 
 if __name__ == "__main__":

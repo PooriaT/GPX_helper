@@ -1,11 +1,44 @@
 export const DEFAULT_API_BASE = (import.meta.env.VITE_API_BASE ?? 'http://localhost:8000').replace(/\/$/, '');
 
+// Local fallback for when /api/v1/capabilities is unavailable; mirrors backend map layer metadata.
 export const MAP_TILE_OPTIONS = [
   { value: '', label: 'Backend default (MAP_TILE_URL_TEMPLATE)' },
-  { value: 'osm', label: 'OpenStreetMap (Standard)' },
-  { value: 'cyclosm', label: 'CyclOSM' },
-  { value: 'opentopomap', label: 'OpenTopoMap (Topo)' }
+  {
+    value: 'osm',
+    label: 'OpenStreetMap (Standard)',
+    previewUrl: 'https://tile.openstreetmap.org/12/654/1582.png',
+    attribution: 'OpenStreetMap contributors'
+  },
+  {
+    value: 'cyclosm',
+    label: 'CyclOSM',
+    previewUrl: 'https://a.tile-cyclosm.openstreetmap.fr/cyclosm/12/654/1582.png',
+    attribution: 'CyclOSM and OpenStreetMap contributors'
+  },
+  {
+    value: 'opentopomap',
+    label: 'OpenTopoMap (Topo)',
+    previewUrl: 'https://a.tile.opentopomap.org/12/654/1582.png',
+    attribution: 'OpenTopoMap and OpenStreetMap contributors'
+  }
 ];
+
+export function normalizeMapTileOptions(mapLayers) {
+  if (!Array.isArray(mapLayers)) return [];
+  return mapLayers
+    .map((layer) => {
+      const value = typeof layer?.value === 'string' ? layer.value : layer?.key;
+      const label = layer?.label;
+      if (typeof value !== 'string' || typeof label !== 'string' || !label.trim()) return null;
+      return {
+        value,
+        label,
+        previewUrl: typeof layer.preview_url === 'string' ? layer.preview_url : layer.previewUrl,
+        attribution: typeof layer.attribution === 'string' ? layer.attribution : undefined
+      };
+    })
+    .filter(Boolean);
+}
 
 export const TELEMETRY_TYPE_OPTIONS = [
   { value: 'elevation_value', label: 'Elevation value' },

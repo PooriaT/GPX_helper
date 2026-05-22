@@ -23,34 +23,16 @@ import gpxpy.gpx
 import numpy as np
 from PIL import Image, ImageColor, ImageDraw
 
+from gpx_helper.map_layers import (
+    DEFAULT_TILE_SUBDOMAINS,
+    DEFAULT_TILE_URL_TEMPLATE,
+    resolve_tile_provider,
+)
+
 EARTH_RADIUS_METERS = 6_378_137.0
 MAX_MERCATOR_LAT = 85.05112878
 DEFAULT_FPS = 30
-DEFAULT_TILE_URL_TEMPLATE = os.environ.get(
-    "MAP_TILE_URL_TEMPLATE",
-    "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-)
 DEFAULT_FFMPEG_PRESET = os.environ.get("MAP_ANIM_FFMPEG_PRESET", "veryfast")
-DEFAULT_TILE_SUBDOMAINS = tuple(
-    sd for sd in os.environ.get("MAP_TILE_SUBDOMAINS", "").split(",") if sd
-) or ("a", "b", "c")
-TILE_PROVIDERS = {
-    "osm": {
-        "label": "OpenStreetMap (Standard)",
-        "template": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-        "subdomains": (),
-    },
-    "cyclosm": {
-        "label": "CyclOSM",
-        "template": "https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png",
-        "subdomains": ("a", "b", "c"),
-    },
-    "opentopomap": {
-        "label": "OpenTopoMap",
-        "template": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
-        "subdomains": ("a", "b", "c"),
-    },
-}
 TILE_REQUEST_TIMEOUT = float(os.environ.get("MAP_TILE_TIMEOUT_SECONDS", "10"))
 TILE_USER_AGENT = os.environ.get(
     "MAP_TILE_USER_AGENT",
@@ -121,17 +103,6 @@ def _format_tile_url(
         resolved_subdomains = subdomains or ("a", "b", "c")
         format_kwargs["s"] = resolved_subdomains[tile_index % len(resolved_subdomains)]
     return template.format(**format_kwargs)
-
-
-def resolve_tile_provider(tile_type: str | None) -> tuple[str, tuple[str, ...]]:
-    if not tile_type:
-        return DEFAULT_TILE_URL_TEMPLATE, DEFAULT_TILE_SUBDOMAINS
-    key = tile_type.lower()
-    provider = TILE_PROVIDERS.get(key)
-    if not provider:
-        valid = ", ".join(sorted(TILE_PROVIDERS))
-        raise ValueError(f"tile_type must be one of: {valid}")
-    return provider["template"], provider["subdomains"]
 
 
 def _normalize_ffmpeg_preset(preset: str) -> str:

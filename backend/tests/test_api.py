@@ -79,6 +79,36 @@ class ApiTests(unittest.TestCase):
         self.assertIn("POST /api/v1/gpx/map-animate", payload["endpoints"])
         self.assertIn("POST /api/v1/gpx/telemetry-video/estimate", payload["endpoints"])
         self.assertIn("POST /api/v1/gpx/telemetry-video", payload["endpoints"])
+        self.assertEqual(
+            payload["map_layers"],
+            [
+                {"key": "", "value": "", "label": "Backend default (MAP_TILE_URL_TEMPLATE)"},
+                {
+                    "key": "osm",
+                    "value": "osm",
+                    "label": "OpenStreetMap (Standard)",
+                    "preview_url": "https://tile.openstreetmap.org/12/654/1582.png",
+                    "attribution": "OpenStreetMap contributors",
+                },
+                {
+                    "key": "cyclosm",
+                    "value": "cyclosm",
+                    "label": "CyclOSM",
+                    "preview_url": "https://a.tile-cyclosm.openstreetmap.fr/cyclosm/12/654/1582.png",
+                    "attribution": "CyclOSM and OpenStreetMap contributors",
+                },
+                {
+                    "key": "opentopomap",
+                    "value": "opentopomap",
+                    "label": "OpenTopoMap (Topo)",
+                    "preview_url": "https://a.tile.opentopomap.org/12/654/1582.png",
+                    "attribution": "OpenTopoMap and OpenStreetMap contributors",
+                },
+            ],
+        )
+        for layer in payload["map_layers"]:
+            self.assertNotIn("tile_url_template", layer)
+            self.assertNotIn("subdomains", layer)
 
     def test_trim_by_time_success(self) -> None:
         files = {

@@ -76,3 +76,11 @@ export async function requestEta(apiBase, path, formData) {
   }
   return payload.estimated_seconds;
 }
+
+export async function requestCapabilities(apiBase) {
+  const response = await globalThis.fetch(`${apiBase}/api/v1/capabilities`);
+  if (!response.ok) {
+    throw new Error(`Unable to fetch capabilities (${response.status})`);
+  }
+  return response.json();
+}

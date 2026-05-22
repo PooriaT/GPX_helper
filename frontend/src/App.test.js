@@ -2,6 +2,10 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/sve
 import App from './App.svelte';
 
 describe('App', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('Capabilities unavailable'))));
+  });
+
   afterEach(() => {
     window.history.replaceState({}, '', '/');
     vi.restoreAllMocks();
