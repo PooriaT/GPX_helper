@@ -79,6 +79,43 @@ class ApiTests(unittest.TestCase):
         self.assertIn("POST /api/v1/gpx/map-animate", payload["endpoints"])
         self.assertIn("POST /api/v1/gpx/telemetry-video/estimate", payload["endpoints"])
         self.assertIn("POST /api/v1/gpx/telemetry-video", payload["endpoints"])
+        self.assertEqual(
+            payload["map_layers"],
+            [
+                {"key": "", "value": "", "label": "Backend default (MAP_TILE_URL_TEMPLATE)"},
+                {
+                    "key": "osm",
+                    "value": "osm",
+                    "label": "OpenStreetMap (Standard)",
+                    "preview_url": "https://tile.openstreetmap.org/12/654/1582.png",
+                    "attribution": "OpenStreetMap contributors",
+                },
+                {
+                    "key": "cyclosm",
+                    "value": "cyclosm",
+                    "label": "CyclOSM",
+                    "preview_url": "https://a.tile-cyclosm.openstreetmap.fr/cyclosm/12/654/1582.png",
+                    "attribution": "CyclOSM and OpenStreetMap contributors",
+                },
+                {
+                    "key": "opentopomap",
+                    "value": "opentopomap",
+                    "label": "OpenTopoMap (Topo)",
+                    "preview_url": "https://a.tile.opentopomap.org/12/654/1582.png",
+                    "attribution": "OpenTopoMap and OpenStreetMap contributors",
+                },
+                {
+                    "key": "esri_world_imagery",
+                    "value": "esri_world_imagery",
+                    "label": "Satellite (Esri World Imagery)",
+                    "preview_url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/12/1582/654",
+                    "attribution": "Esri, Vantor, Earthstar Geographics, and the GIS User Community",
+                },
+            ],
+        )
+        for layer in payload["map_layers"]:
+            self.assertNotIn("tile_url_template", layer)
+            self.assertNotIn("subdomains", layer)
 
     def test_trim_by_time_success(self) -> None:
         files = {
@@ -285,6 +322,43 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(captured.get("full_line_opacity"), 0.35)
         self.assertEqual(captured.get("animated_line_opacity"), 0.25)
 
+    def test_map_animation_accepts_esri_world_imagery_tile_type(self) -> None:
+        files = {
+            "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
+        }
+        data = {
+            "duration_seconds": "5",
+            "fps": "24",
+            "resolution": "640x480",
+            "tile_type": "esri_world_imagery",
+        }
+        captured = {}
+
+        def _fake_animation(
+            xs,
+            ys,
+            frame_indices,
+            total_frames,
+            fps,
+            width_px,
+            height_px,
+            output_path,
+            **kwargs,
+        ):
+            captured.update(kwargs)
+            with open(output_path, "wb") as f:
+                f.write(b"mp4-bytes")
+
+        with mock.patch("gpx_helper.api.routes.animation.create_animation", side_effect=_fake_animation):
+            response = self.client.post("/api/v1/gpx/map-animate", files=files, data=data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            captured.get("tile_template"),
+            "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        )
+        self.assertEqual(captured.get("tile_subdomains"), ())
+
     def test_map_animation_invalid_resolution(self) -> None:
         files = {
             "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
@@ -342,6 +416,7 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("tile_type", response.json()["detail"])
+        self.assertIn("esri_world_imagery", response.json()["detail"])
 
     def test_map_animation_eta_success(self) -> None:
         files = {
@@ -406,6 +481,7 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("tile_type", response.json()["detail"])
+        self.assertIn("esri_world_imagery", response.json()["detail"])
 
     def test_telemetry_video_success(self) -> None:
         files = {

@@ -2,6 +2,10 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/sve
 import App from './App.svelte';
 
 describe('App', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('Capabilities unavailable'))));
+  });
+
   afterEach(() => {
     window.history.replaceState({}, '', '/');
     vi.restoreAllMocks();
@@ -80,7 +84,10 @@ describe('App', () => {
     expect(screen.getByLabelText(/Frames per second/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Resolution width/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Resolution height/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Tile style/i)).toBeInTheDocument();
+    const tileStyleSelect = screen.getByLabelText(/Tile style/i);
+    expect(tileStyleSelect).toBeInTheDocument();
+    expect(tileStyleSelect).toHaveValue('osm');
+    expect(screen.queryByRole('option', { name: /Backend default/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Render animation/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Trim by time/i })).not.toBeInTheDocument();
   });
