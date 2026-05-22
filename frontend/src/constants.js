@@ -1,8 +1,7 @@
 export const DEFAULT_API_BASE = (import.meta.env.VITE_API_BASE ?? 'http://localhost:8000').replace(/\/$/, '');
 
-// Local fallback for when /api/v1/capabilities is unavailable; mirrors backend map layer metadata.
+// Local fallback for when /api/v1/capabilities is unavailable.
 export const MAP_TILE_OPTIONS = [
-  { value: '', label: 'Backend default (MAP_TILE_URL_TEMPLATE)' },
   {
     value: 'osm',
     label: 'OpenStreetMap (Standard)',
@@ -20,6 +19,12 @@ export const MAP_TILE_OPTIONS = [
     label: 'OpenTopoMap (Topo)',
     previewUrl: 'https://a.tile.opentopomap.org/12/654/1582.png',
     attribution: 'OpenTopoMap and OpenStreetMap contributors'
+  },
+  {
+    value: 'esri_world_imagery',
+    label: 'Satellite (Esri World Imagery)',
+    previewUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/12/1582/654',
+    attribution: 'Esri, Vantor, Earthstar Geographics, and the GIS User Community'
   }
 ];
 
@@ -29,7 +34,7 @@ export function normalizeMapTileOptions(mapLayers) {
     .map((layer) => {
       const value = typeof layer?.value === 'string' ? layer.value : layer?.key;
       const label = layer?.label;
-      if (typeof value !== 'string' || typeof label !== 'string' || !label.trim()) return null;
+      if (typeof value !== 'string' || !value.trim() || typeof label !== 'string' || !label.trim()) return null;
       return {
         value,
         label,

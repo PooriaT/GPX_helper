@@ -55,6 +55,13 @@ MAP_LAYERS: tuple[MapLayer, ...] = (
         preview_url="https://a.tile.opentopomap.org/12/654/1582.png",
         attribution="OpenTopoMap and OpenStreetMap contributors",
     ),
+    MapLayer(
+        key="esri_world_imagery",
+        label="Satellite (Esri World Imagery)",
+        tile_url_template="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        preview_url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/12/1582/654",
+        attribution="Esri, Vantor, Earthstar Geographics, and the GIS User Community",
+    ),
 )
 
 TILE_PROVIDERS = {layer.key: layer for layer in MAP_LAYERS if layer.key}

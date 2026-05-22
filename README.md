@@ -135,8 +135,9 @@ curl -X POST http://localhost:8000/api/v1/gpx/telemetry-video/estimate \
 ```
 
 ## Animate a GPX route on a map
-`map_animator.py` turns a GPX track into an MP4 that draws the route over OpenStreetMap tiles. It converts
-coordinates to Web Mercator (EPSG:3857) so they align with the basemap and hides chart axes for a clean map view.
+`map_animator.py` turns a GPX track into an MP4 that draws the route over token-free built-in map layers, including
+OpenStreetMap and Satellite (Esri World Imagery). It converts coordinates to Web Mercator (EPSG:3857) so they align
+with the basemap and hides chart axes for a clean map view.
 
 Usage:
 
@@ -149,7 +150,7 @@ python3 backend/src/gpx_helper/map_animator.py route.gpx 45 1920x1080 -o route.m
 - `1920x1080`: output resolution (width x height)
 - `-o route.mp4` (optional): output file name; defaults to `output.mp4`
 
-The script fetches free OpenStreetMap tiles via `folium` (no API key required) and writes MP4 video with `ffmpeg`.
+The script fetches the selected built-in map tiles via `folium` and writes MP4 video with `ffmpeg`.
 
 ### What `gpx_splitter.py` does
 1. Reads creation and duration metadata from the video (UTC) using `exiftool`.

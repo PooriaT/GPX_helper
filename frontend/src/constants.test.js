@@ -6,25 +6,24 @@ describe('normalizeMapTileOptions', () => {
       normalizeMapTileOptions([
         { key: '', value: '', label: 'Backend default (MAP_TILE_URL_TEMPLATE)' },
         {
-          key: 'osm',
-          value: 'osm',
-          label: 'OpenStreetMap (Standard)',
-          preview_url: 'https://example.test/osm-preview.png',
-          attribution: 'OpenStreetMap contributors'
+          key: 'esri_world_imagery',
+          value: 'esri_world_imagery',
+          label: 'Satellite (Esri World Imagery)',
+          preview_url: 'https://example.test/esri-preview.png',
+          attribution: 'Esri, Vantor, Earthstar Geographics, and the GIS User Community'
         }
       ])
     ).toEqual([
-      { value: '', label: 'Backend default (MAP_TILE_URL_TEMPLATE)', previewUrl: undefined, attribution: undefined },
       {
-        value: 'osm',
-        label: 'OpenStreetMap (Standard)',
-        previewUrl: 'https://example.test/osm-preview.png',
-        attribution: 'OpenStreetMap contributors'
+        value: 'esri_world_imagery',
+        label: 'Satellite (Esri World Imagery)',
+        previewUrl: 'https://example.test/esri-preview.png',
+        attribution: 'Esri, Vantor, Earthstar Geographics, and the GIS User Community'
       }
     ]);
   });
 
   it('ignores malformed map layer entries', () => {
-    expect(normalizeMapTileOptions([null, { key: 'osm' }, { label: 'Missing value' }])).toEqual([]);
+    expect(normalizeMapTileOptions([null, { key: 'osm' }, { label: 'Missing value' }, { key: '', value: '', label: 'Backend default (MAP_TILE_URL_TEMPLATE)' }])).toEqual([]);
   });
 });
