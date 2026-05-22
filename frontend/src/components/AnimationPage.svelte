@@ -123,6 +123,14 @@
           <p class="options-title">Style options</p>
           <div class="options-grid">
             <label>
+              Marker style
+              <select bind:value={mapAnimation.markerStyle}>
+                <option value="default">Default marker</option>
+                <option value="bike">Bike</option>
+                <option value="runner">Runner</option>
+              </select>
+            </label>
+            <label>
               Marker color
               <div class="color-control">
                 <input class="color-picker" type="color" bind:value={mapAnimation.markerColor} style={`--picker-color: ${mapAnimation.markerColor};`} />

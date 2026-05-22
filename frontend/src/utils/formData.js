@@ -22,6 +22,7 @@ export function buildMapAnimationFormData(mapAnimation, resolutionLabel) {
   formData.append('duration_seconds', String(mapAnimation.durationSeconds));
   formData.append('fps', String(mapAnimation.fps));
   formData.append('resolution', resolutionLabel);
+  formData.append('marker_style', mapAnimation.markerStyle || 'default');
   formData.append('marker_color', mapAnimation.markerColor);
   formData.append('trail_color', mapAnimation.trailColor);
   formData.append('full_trail_color', mapAnimation.fullTrailColor);

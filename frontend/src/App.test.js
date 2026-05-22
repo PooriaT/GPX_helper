@@ -87,6 +87,12 @@ describe('App', () => {
     const tileStyleSelect = screen.getByLabelText(/Tile style/i);
     expect(tileStyleSelect).toBeInTheDocument();
     expect(tileStyleSelect).toHaveValue('osm');
+    const markerStyleSelect = screen.getByLabelText(/Marker style/i);
+    expect(markerStyleSelect).toBeInTheDocument();
+    expect(markerStyleSelect).toHaveValue('default');
+    expect(screen.getByRole('option', { name: /Default marker/i })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /^Bike$/i })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /^Runner$/i })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /Backend default/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Render animation/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Trim by time/i })).not.toBeInTheDocument();

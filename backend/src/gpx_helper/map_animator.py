@@ -50,6 +50,15 @@ FFMPEG_PRESET_SPEED = {
     "slower": 1.3,
     "veryslow": 1.5,
 }
+SUPPORTED_MARKER_STYLES = {"default", "bike", "runner"}
+
+
+def resolve_marker_style(marker_style: str | None) -> str:
+    resolved = (marker_style or "default").strip().lower() or "default"
+    if resolved not in SUPPORTED_MARKER_STYLES:
+        supported = ", ".join(sorted(SUPPORTED_MARKER_STYLES))
+        raise ValueError(f"marker_style must be one of: {supported}")
+    return resolved
 
 
 def _read_int_env(name: str, default: int) -> int:
@@ -503,10 +512,17 @@ def _build_marker_image(
     marker_color: str,
     marker_size: float,
     *,
+    marker_style: str = "default",
     edge_color: str = "white",
     edge_width: float = 1.0,
 ) -> tuple[Image.Image, int]:
+    marker_style = resolve_marker_style(marker_style)
     radius = max(2, int(round(marker_size)))
+    if marker_style == "bike":
+        return _build_bike_marker_image(marker_color, radius, edge_color=edge_color)
+    if marker_style == "runner":
+        return _build_runner_marker_image(marker_color, radius, edge_color=edge_color)
+
     diameter = radius * 2 + int(round(edge_width * 2))
     marker_img = Image.new("RGBA", (diameter, diameter), (0, 0, 0, 0))
     draw = ImageDraw.Draw(marker_img)
@@ -520,6 +536,109 @@ def _build_marker_image(
         center + radius,
     ]
     draw.ellipse(bbox, fill=fill, outline=outline, width=max(1, int(round(edge_width))))
+    return marker_img, center
+
+
+def _build_bike_marker_image(
+    marker_color: str,
+    marker_radius: int,
+    *,
+    edge_color: str,
+) -> tuple[Image.Image, int]:
+    size = max(18, marker_radius * 4)
+    center = size // 2
+    marker_img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(marker_img)
+    fill = _hex_to_rgba(marker_color, 1.0)
+    outline = _hex_to_rgba(edge_color, 1.0)
+    line_width = max(2, size // 11)
+    outline_width = line_width + max(2, size // 14)
+
+    wheel_radius = max(3, int(round(size * 0.16)))
+    left_wheel = (int(round(size * 0.29)), int(round(size * 0.67)))
+    right_wheel = (int(round(size * 0.71)), int(round(size * 0.67)))
+    crank = (int(round(size * 0.50)), int(round(size * 0.62)))
+    seat = (int(round(size * 0.45)), int(round(size * 0.40)))
+    handlebar = (int(round(size * 0.68)), int(round(size * 0.39)))
+    stem = (int(round(size * 0.62)), int(round(size * 0.47)))
+
+    for wheel in (left_wheel, right_wheel):
+        bbox = [
+            wheel[0] - wheel_radius,
+            wheel[1] - wheel_radius,
+            wheel[0] + wheel_radius,
+            wheel[1] + wheel_radius,
+        ]
+        draw.ellipse(bbox, outline=outline, width=outline_width)
+        draw.ellipse(bbox, outline=fill, width=line_width)
+
+    frame_lines = [
+        [left_wheel, crank, right_wheel, stem, seat, left_wheel],
+        [seat, crank],
+        [stem, handlebar],
+        [(handlebar[0], handlebar[1]), (handlebar[0] + max(2, size // 10), handlebar[1])],
+    ]
+    for points in frame_lines:
+        draw.line(points, fill=outline, width=outline_width)
+        draw.line(points, fill=fill, width=line_width)
+
+    return marker_img, center
+
+
+def _build_runner_marker_image(
+    marker_color: str,
+    marker_radius: int,
+    *,
+    edge_color: str,
+) -> tuple[Image.Image, int]:
+    size = max(18, marker_radius * 4)
+    center = size // 2
+    marker_img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(marker_img)
+    fill = _hex_to_rgba(marker_color, 1.0)
+    outline = _hex_to_rgba(edge_color, 1.0)
+    line_width = max(2, size // 10)
+    outline_width = line_width + max(2, size // 14)
+
+    head_radius = max(2, int(round(size * 0.10)))
+    head_center = (int(round(size * 0.55)), int(round(size * 0.25)))
+    head_bbox = [
+        head_center[0] - head_radius,
+        head_center[1] - head_radius,
+        head_center[0] + head_radius,
+        head_center[1] + head_radius,
+    ]
+    draw.ellipse(head_bbox, fill=outline)
+    inset = max(1, size // 24)
+    draw.ellipse(
+        [
+            head_bbox[0] + inset,
+            head_bbox[1] + inset,
+            head_bbox[2] - inset,
+            head_bbox[3] - inset,
+        ],
+        fill=fill,
+    )
+
+    torso_top = (int(round(size * 0.50)), int(round(size * 0.38)))
+    hip = (int(round(size * 0.45)), int(round(size * 0.58)))
+    arm_back = (int(round(size * 0.30)), int(round(size * 0.48)))
+    arm_front = (int(round(size * 0.66)), int(round(size * 0.50)))
+    leg_back = (int(round(size * 0.29)), int(round(size * 0.78)))
+    knee_front = (int(round(size * 0.62)), int(round(size * 0.66)))
+    foot_front = (int(round(size * 0.76)), int(round(size * 0.78)))
+
+    body_lines = [
+        [torso_top, hip],
+        [(int(round(size * 0.47)), int(round(size * 0.45))), arm_back],
+        [(int(round(size * 0.49)), int(round(size * 0.47))), arm_front],
+        [hip, leg_back],
+        [hip, knee_front, foot_front],
+    ]
+    for points in body_lines:
+        draw.line(points, fill=outline, width=outline_width)
+        draw.line(points, fill=fill, width=line_width)
+
     return marker_img, center
 
 
@@ -600,6 +719,7 @@ def create_animation(
     line_width: float = 2.5,
     animated_line_opacity: float = 1.0,
     marker_size: float = 6.0,
+    marker_style: str = "default",
     tile_template: str | None = None,
     tile_subdomains: tuple[str, ...] | None = None,
 ) -> None:
@@ -637,8 +757,9 @@ def create_animation(
     trail_image = Image.new("RGBA", base_image.size, (0, 0, 0, 0))
     trail_draw = ImageDraw.Draw(trail_image, "RGBA")
     trail_color = _hex_to_rgba(animated_line_color, animated_line_opacity)
+    marker_style = resolve_marker_style(marker_style)
     marker_image, marker_offset = _build_marker_image(
-        marker_color, marker_size, edge_width=0.8
+        marker_color, marker_size, marker_style=marker_style, edge_width=0.8
     )
 
     print(f"Saving video to {output_path} ...")
