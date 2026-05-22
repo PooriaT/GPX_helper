@@ -22,6 +22,7 @@ from gpx_helper.map_animator import (
     load_gpx_points,
     parse_resolution,
     prepare_animation_series,
+    resolve_marker_style,
     resolve_tile_provider,
 )
 
@@ -64,6 +65,7 @@ def estimate_map_animation(
     line_width: float = Form(2.5),
     line_opacity: float = Form(1.0),
     marker_size: float = Form(6.0),
+    marker_style: str = Form("default"),
     tile_type: str | None = Form(None),
 ) -> JSONResponse:
     del marker_color, trail_color, full_trail_color
@@ -80,6 +82,7 @@ def estimate_map_animation(
     )
 
     try:
+        resolve_marker_style(marker_style)
         resolve_tile_provider(tile_type)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -113,6 +116,7 @@ def animate_gpx_route(
     line_width: float = Form(2.5),
     line_opacity: float = Form(1.0),
     marker_size: float = Form(6.0),
+    marker_style: str = Form("default"),
     tile_type: str | None = Form(None),
 ) -> StreamingResponse:
     gpx_file = validate_upload(gpx_file, "gpx_file")
@@ -128,6 +132,7 @@ def animate_gpx_route(
     )
 
     try:
+        marker_style = resolve_marker_style(marker_style)
         tile_template, tile_subdomains = resolve_tile_provider(tile_type)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -167,6 +172,7 @@ def animate_gpx_route(
             line_width=line_width,
             animated_line_opacity=line_opacity,
             marker_size=marker_size,
+            marker_style=marker_style,
             tile_template=tile_template,
             tile_subdomains=tile_subdomains,
         )

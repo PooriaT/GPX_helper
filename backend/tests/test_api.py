@@ -321,6 +321,47 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(captured.get("fps"), 24.0)
         self.assertEqual(captured.get("full_line_opacity"), 0.35)
         self.assertEqual(captured.get("animated_line_opacity"), 0.25)
+        self.assertEqual(captured.get("marker_style"), "default")
+
+    def test_map_animation_passes_marker_styles(self) -> None:
+        for marker_style in ("bike", "runner"):
+            with self.subTest(marker_style=marker_style):
+                files = {
+                    "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
+                }
+                data = {
+                    "duration_seconds": "5",
+                    "fps": "24",
+                    "resolution": "640x480",
+                    "marker_style": marker_style,
+                }
+                captured = {}
+
+                def _fake_animation(
+                    xs,
+                    ys,
+                    frame_indices,
+                    total_frames,
+                    fps,
+                    width_px,
+                    height_px,
+                    output_path,
+                    **kwargs,
+                ):
+                    captured.update(kwargs)
+                    with open(output_path, "wb") as f:
+                        f.write(b"mp4-bytes")
+
+                with mock.patch(
+                    "gpx_helper.api.routes.animation.create_animation",
+                    side_effect=_fake_animation,
+                ):
+                    response = self.client.post(
+                        "/api/v1/gpx/map-animate", files=files, data=data
+                    )
+
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(captured.get("marker_style"), marker_style)
 
     def test_map_animation_accepts_esri_world_imagery_tile_type(self) -> None:
         files = {
@@ -418,6 +459,24 @@ class ApiTests(unittest.TestCase):
         self.assertIn("tile_type", response.json()["detail"])
         self.assertIn("esri_world_imagery", response.json()["detail"])
 
+    def test_map_animation_invalid_marker_style(self) -> None:
+        files = {
+            "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
+        }
+        data = {
+            "duration_seconds": "5",
+            "resolution": "640x480",
+            "marker_style": "skis",
+        }
+
+        response = self.client.post("/api/v1/gpx/map-animate", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json()["detail"],
+            "marker_style must be one of: bike, default, runner",
+        )
+
     def test_map_animation_eta_success(self) -> None:
         files = {
             "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
@@ -482,6 +541,24 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("tile_type", response.json()["detail"])
         self.assertIn("esri_world_imagery", response.json()["detail"])
+
+    def test_map_animation_eta_invalid_marker_style(self) -> None:
+        files = {
+            "gpx_file": ("track.gpx", _build_gpx(), "application/gpx+xml"),
+        }
+        data = {
+            "duration_seconds": "5",
+            "resolution": "640x480",
+            "marker_style": "skis",
+        }
+
+        response = self.client.post("/api/v1/gpx/map-animate/estimate", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json()["detail"],
+            "marker_style must be one of: bike, default, runner",
+        )
 
     def test_telemetry_video_success(self) -> None:
         files = {
