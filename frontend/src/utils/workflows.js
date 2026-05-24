@@ -22,13 +22,15 @@ export async function buildVideoClip(file, index) {
   };
 }
 
-export async function buildMapAnimationBatchPair(gpxFile, videoFile, index) {
-  const durationSeconds = await loadVideoDuration(videoFile);
+export async function buildMapAnimationBatchPair(gpxFile, index) {
+  const durationSeconds = await parseGpxDuration(gpxFile);
+  if (!durationSeconds) {
+    throw new Error(`Unable to read GPX timestamps from "${gpxFile?.name ?? `route-${index + 1}`}".`);
+  }
   const gpxBaseName = gpxFile?.name?.replace(/\.[^./\\]+$/, '') || `route-${index + 1}`;
   return {
     gpxFile,
-    videoFile,
-    durationSeconds: Math.max(1, Math.round(durationSeconds)),
+    durationSeconds,
     outputName: gpxBaseName
   };
 }

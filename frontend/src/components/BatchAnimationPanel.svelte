@@ -9,15 +9,10 @@
 
   export let onSubmit;
   export let onGpxFilesChange;
-  export let onVideoFilesChange;
   export let onPairDurationChange;
   export let onPairOutputNameChange;
 
-  $: hasFiles = mapAnimationBatch.gpxFiles.length > 0 || mapAnimationBatch.videoFiles.length > 0;
-  $: hasCountMismatch = mapAnimationBatch.gpxFiles.length > 0 && mapAnimationBatch.videoFiles.length > 0 && mapAnimationBatch.gpxFiles.length !== mapAnimationBatch.videoFiles.length;
-  $: countMessage = hasCountMismatch
-    ? `${mapAnimationBatch.gpxFiles.length} GPX files and ${mapAnimationBatch.videoFiles.length} video files selected. Add or remove files so the counts match.`
-    : '';
+  $: hasFiles = mapAnimationBatch.gpxFiles.length > 0;
 </script>
 
 <form class="form-grid" on:submit|preventDefault={onSubmit}>
@@ -40,40 +35,17 @@
     />
   </section>
 
-  <section class="step-section">
+  <section class="step-section review-section">
     <div class="step-heading">
       <span class="step-number">2</span>
       <div>
-        <h3>Upload videos</h3>
-        <p class="muted-text">Videos stay in the browser and are used only to detect duration.</p>
-      </div>
-    </div>
-    <FileField
-      label="Video files"
-      accept="video/*"
-      multiple
-      fileName={mapAnimationBatch.videoFiles.length ? `${mapAnimationBatch.videoFiles.length} video files selected` : ''}
-      placeholder="Select videos for duration detection"
-      onChange={onVideoFilesChange}
-      required
-    />
-  </section>
-
-  <section class="step-section review-section">
-    <div class="step-heading">
-      <span class="step-number">3</span>
-      <div>
-        <h3>Review GPX/video pairs</h3>
+        <h3>Review GPX durations</h3>
         <p class="muted-text">Each row becomes one animation in the ZIP, and durations can be adjusted before rendering.</p>
       </div>
     </div>
 
-    {#if countMessage}
-      <p class="error" role="alert">{countMessage}</p>
-    {/if}
-
     {#if mapAnimationBatch.isPreparing}
-      <p class="hint">Reading video durations.</p>
+      <p class="hint">Reading GPX durations.</p>
     {:else if mapAnimationBatch.pairs.length}
       <div class="pair-table-wrap">
         <table class="pair-table">
@@ -81,7 +53,6 @@
             <tr>
               <th scope="col">#</th>
               <th scope="col">GPX</th>
-              <th scope="col">Video</th>
               <th scope="col">Duration</th>
               <th scope="col">Output name</th>
             </tr>
@@ -91,7 +62,6 @@
               <tr>
                 <td>{index + 1}</td>
                 <td>{pair.gpxFile?.name ?? 'Missing GPX'}</td>
-                <td>{pair.videoFile?.name ?? 'Missing video'}</td>
                 <td>
                   <input
                     type="number"
@@ -118,7 +88,7 @@
         </table>
       </div>
     {:else if hasFiles}
-      <p class="hint">Select matching GPX and video files to create pairs.</p>
+      <p class="hint">No readable GPX durations.</p>
     {:else}
       <p class="hint">No pairs selected.</p>
     {/if}
@@ -128,7 +98,7 @@
 
   <section class="step-section action-step">
     <div class="step-heading">
-      <span class="step-number">4</span>
+      <span class="step-number">3</span>
       <div>
         <h3>Execute action</h3>
         <p class="muted-text">Render all route animations into one ZIP file.</p>

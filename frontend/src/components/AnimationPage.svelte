@@ -13,7 +13,6 @@
   export let onBatchSubmit;
   export let onGpxChange;
   export let onBatchGpxFilesChange;
-  export let onBatchVideoFilesChange;
   export let onBatchPairDurationChange;
   export let onBatchPairOutputNameChange;
 
@@ -29,7 +28,7 @@
       Single GPX
     </button>
     <button type="button" class:mode-active={selectedMode === 'batch'} on:click={() => (selectedMode = 'batch')}>
-      Batch GPX/video pairs
+      Batch GPX files
     </button>
   </div>
 
@@ -128,7 +127,6 @@
       {mapTileOptions}
       onSubmit={onBatchSubmit}
       onGpxFilesChange={onBatchGpxFilesChange}
-      onVideoFilesChange={onBatchVideoFilesChange}
       onPairDurationChange={onBatchPairDurationChange}
       onPairOutputNameChange={onBatchPairOutputNameChange}
     />

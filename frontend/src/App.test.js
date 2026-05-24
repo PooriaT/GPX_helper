@@ -29,35 +29,30 @@ describe('App', () => {
   }
 
   function buildGpxFile(name) {
-    return new File(['<gpx></gpx>'], name, { type: 'application/gpx+xml' });
+    return new File(
+      [
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1">
+          <trk><trkseg>
+            <trkpt lat="49.0" lon="-123.0"><time>2024-01-01T00:00:00Z</time></trkpt>
+            <trkpt lat="49.1" lon="-123.1"><time>2024-01-01T00:00:32Z</time></trkpt>
+          </trkseg></trk>
+        </gpx>`
+      ],
+      name,
+      { type: 'application/gpx+xml' }
+    );
   }
 
-  function buildVideoFile(name) {
-    return new File(['video'], name, { type: 'video/mp4' });
-  }
-
-  function stubVideoDuration(durationSeconds) {
+  function stubObjectUrls() {
     if (!URL.createObjectURL) {
       Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn() });
     }
     if (!URL.revokeObjectURL) {
       Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
     }
-    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:video');
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:route-animations');
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
-    const createElement = document.createElement.bind(document);
-    vi.spyOn(document, 'createElement').mockImplementation((tagName, options) => {
-      if (String(tagName).toLowerCase() !== 'video') return createElement(tagName, options);
-      return {
-        preload: '',
-        duration: durationSeconds,
-        onloadedmetadata: null,
-        onerror: null,
-        set src(_value) {
-          queueMicrotask(() => this.onloadedmetadata?.());
-        }
-      };
-    });
   }
 
   function buildZipResponse() {
@@ -142,12 +137,12 @@ describe('App', () => {
     render(App);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Batch GPX\/video pairs/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Batch GPX files/i })).toBeInTheDocument();
     });
-    await fireEvent.click(screen.getByRole('button', { name: /Batch GPX\/video pairs/i }));
+    await fireEvent.click(screen.getByRole('button', { name: /Batch GPX files/i }));
 
     expect(screen.getByLabelText(/^GPX files$/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/^Video files$/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Video files$/i)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Render batch ZIP/i })).toBeInTheDocument();
     expect(screen.getByText(/Batch renders are all-or-nothing: if one pair fails, no ZIP is created\./i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Render animation$/i })).not.toBeInTheDocument();
@@ -155,26 +150,20 @@ describe('App', () => {
 
   it('displays order-based batch route animation pairs for review', async () => {
     window.location.hash = '#/animation';
-    stubVideoDuration(32);
     render(App);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Batch GPX\/video pairs/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Batch GPX files/i })).toBeInTheDocument();
     });
-    await fireEvent.click(screen.getByRole('button', { name: /Batch GPX\/video pairs/i }));
+    await fireEvent.click(screen.getByRole('button', { name: /Batch GPX files/i }));
 
     await fireEvent.change(screen.getByLabelText(/^GPX files$/i), {
       target: { files: [buildGpxFile('first.gpx'), buildGpxFile('second.gpx')] }
     });
-    await fireEvent.change(screen.getByLabelText(/^Video files$/i), {
-      target: { files: [buildVideoFile('first.mp4'), buildVideoFile('second.mp4')] }
-    });
 
     await waitFor(() => {
       expect(screen.getByText('first.gpx')).toBeInTheDocument();
-      expect(screen.getByText('first.mp4')).toBeInTheDocument();
       expect(screen.getByText('second.gpx')).toBeInTheDocument();
-      expect(screen.getByText('second.mp4')).toBeInTheDocument();
     });
     expect(screen.getByLabelText(/Duration for pair 1/i)).toHaveValue(32);
     expect(screen.getByLabelText(/Output name for pair 2/i)).toHaveValue('second');
@@ -182,7 +171,7 @@ describe('App', () => {
 
   it('requests a batch ETA before rendering and shows it while the ZIP is rendering', async () => {
     window.location.hash = '#/animation';
-    stubVideoDuration(32);
+    stubObjectUrls();
     let resolveRender;
     const renderPromise = new Promise((resolve) => {
       resolveRender = () => resolve(buildZipResponse());
@@ -209,14 +198,11 @@ describe('App', () => {
     render(App);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Batch GPX\/video pairs/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Batch GPX files/i })).toBeInTheDocument();
     });
-    await fireEvent.click(screen.getByRole('button', { name: /Batch GPX\/video pairs/i }));
+    await fireEvent.click(screen.getByRole('button', { name: /Batch GPX files/i }));
     await fireEvent.change(screen.getByLabelText(/^GPX files$/i), {
       target: { files: [buildGpxFile('first.gpx'), buildGpxFile('second.gpx')] }
-    });
-    await fireEvent.change(screen.getByLabelText(/^Video files$/i), {
-      target: { files: [buildVideoFile('first.mp4'), buildVideoFile('second.mp4')] }
     });
     await waitFor(() => {
       expect(screen.getByLabelText(/Duration for pair 2/i)).toHaveValue(32);
@@ -243,7 +229,7 @@ describe('App', () => {
 
   it('continues batch rendering when the batch ETA request fails', async () => {
     window.location.hash = '#/animation';
-    stubVideoDuration(32);
+    stubObjectUrls();
     const fetchMock = vi.fn((url) => {
       const path = String(url);
       if (path.endsWith('/api/v1/capabilities')) {
@@ -263,14 +249,11 @@ describe('App', () => {
     render(App);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Batch GPX\/video pairs/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Batch GPX files/i })).toBeInTheDocument();
     });
-    await fireEvent.click(screen.getByRole('button', { name: /Batch GPX\/video pairs/i }));
+    await fireEvent.click(screen.getByRole('button', { name: /Batch GPX files/i }));
     await fireEvent.change(screen.getByLabelText(/^GPX files$/i), {
       target: { files: [buildGpxFile('first.gpx'), buildGpxFile('second.gpx')] }
-    });
-    await fireEvent.change(screen.getByLabelText(/^Video files$/i), {
-      target: { files: [buildVideoFile('first.mp4'), buildVideoFile('second.mp4')] }
     });
     await waitFor(() => {
       expect(screen.getByLabelText(/Duration for pair 2/i)).toHaveValue(32);
@@ -286,7 +269,6 @@ describe('App', () => {
 
   it('displays batch item errors returned by the backend', async () => {
     window.location.hash = '#/animation';
-    stubVideoDuration(32);
     const fetchMock = vi.fn((url) => {
       const path = String(url);
       if (path.endsWith('/api/v1/capabilities')) {
@@ -314,14 +296,11 @@ describe('App', () => {
     render(App);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Batch GPX\/video pairs/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Batch GPX files/i })).toBeInTheDocument();
     });
-    await fireEvent.click(screen.getByRole('button', { name: /Batch GPX\/video pairs/i }));
+    await fireEvent.click(screen.getByRole('button', { name: /Batch GPX files/i }));
     await fireEvent.change(screen.getByLabelText(/^GPX files$/i), {
       target: { files: [buildGpxFile('ride-one.gpx'), buildGpxFile('ride-two.gpx')] }
-    });
-    await fireEvent.change(screen.getByLabelText(/^Video files$/i), {
-      target: { files: [buildVideoFile('ride-one.mp4'), buildVideoFile('ride-two.mp4')] }
     });
     await waitFor(() => {
       expect(screen.getByLabelText(/Duration for pair 2/i)).toHaveValue(32);

@@ -17,7 +17,7 @@
   let trimByTime = { startLocal: '', endLocal: '', gpxFile: null, videoFile: null, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
   let trimByVideos = { gpxFile: null, videoFiles: [], clips: [], totalDurationSeconds: 0, isPreparing: false, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
   let mapAnimation = { gpxFile: null, durationSeconds: 45, fps: 30, resolutionWidth: 1024, resolutionHeight: 1024, tileType: MAP_TILE_OPTIONS[0]?.value ?? 'osm', markerStyle: 'default', markerColor: '#0ea5e9', trailColor: '#0ea5e9', fullTrailColor: '#111827', fullTrailOpacity: 0.8, markerSize: 6, lineWidth: 2.5, lineOpacity: 1, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
-  let mapAnimationBatch = { gpxFiles: [], videoFiles: [], pairs: [], isPreparing: false, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
+  let mapAnimationBatch = { gpxFiles: [], pairs: [], isPreparing: false, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
   let telemetryVideo = { gpxFile: null, durationSeconds: 4, fps: 30, resolutionWidth: 1024, resolutionHeight: 1024, telemetryType: 'elevation_value', backgroundMode: 'transparent', backgroundColor: '#000000', status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
 
   let mapTileOptions = MAP_TILE_OPTIONS;
@@ -188,12 +188,8 @@
 
     try {
       if (!mapAnimationBatch.gpxFiles.length) throw new Error('Upload at least one GPX file to animate.');
-      if (!mapAnimationBatch.videoFiles.length) throw new Error('Upload at least one video file for duration detection.');
-      if (mapAnimationBatch.gpxFiles.length !== mapAnimationBatch.videoFiles.length) {
-        throw new Error('Select the same number of GPX files and video files.');
-      }
       if (mapAnimationBatch.pairs.length !== mapAnimationBatch.gpxFiles.length) {
-        throw new Error('Review the GPX/video pairs before rendering.');
+        throw new Error('Review the GPX durations before rendering.');
       }
       const invalidPair = mapAnimationBatch.pairs.find((pair) => !Number(pair.durationSeconds) || Number(pair.durationSeconds) <= 0);
       if (invalidPair) throw new Error('Every pair needs a duration greater than zero.');
@@ -305,11 +301,10 @@
     mapAnimation = { ...mapAnimation, gpxFile: file, durationSeconds };
   }
 
-  async function buildMapAnimationBatchPairs(gpxFiles, videoFiles) {
-    const pairCount = Math.min(gpxFiles.length, videoFiles.length);
-    if (!pairCount) return [];
+  async function buildMapAnimationBatchPairs(gpxFiles) {
+    if (!gpxFiles.length) return [];
     return Promise.all(
-      gpxFiles.slice(0, pairCount).map((gpxFile, index) => buildMapAnimationBatchPair(gpxFile, videoFiles[index], index))
+      gpxFiles.map((gpxFile, index) => buildMapAnimationBatchPair(gpxFile, index))
     );
   }
 
@@ -317,35 +312,17 @@
     const selectionId = ++mapAnimationBatchSelectionId;
     const gpxFiles = Array.from(event.target.files ?? []);
     if (mapAnimationBatch.downloadUrl) URL.revokeObjectURL(mapAnimationBatch.downloadUrl);
-    const shouldBuildPairs = gpxFiles.length > 0 && mapAnimationBatch.videoFiles.length > 0;
+    const shouldBuildPairs = gpxFiles.length > 0;
     mapAnimationBatch = { ...mapAnimationBatch, gpxFiles, pairs: [], isPreparing: shouldBuildPairs, status: 'idle', error: '', message: '', downloadUrl: '', filename: '' };
     if (!shouldBuildPairs) return;
 
     try {
-      const pairs = await buildMapAnimationBatchPairs(gpxFiles, mapAnimationBatch.videoFiles);
+      const pairs = await buildMapAnimationBatchPairs(gpxFiles);
       if (selectionId !== mapAnimationBatchSelectionId) return;
       mapAnimationBatch = { ...mapAnimationBatch, gpxFiles, pairs, isPreparing: false, status: 'idle', error: '' };
     } catch (error) {
       if (selectionId !== mapAnimationBatchSelectionId) return;
-      mapAnimationBatch = { ...mapAnimationBatch, gpxFiles, pairs: [], isPreparing: false, status: 'idle', error: parseError(error, 'Unable to read video metadata.') };
-    }
-  }
-
-  async function handleBatchMapAnimationVideoFilesChange(event) {
-    const selectionId = ++mapAnimationBatchSelectionId;
-    const videoFiles = Array.from(event.target.files ?? []);
-    if (mapAnimationBatch.downloadUrl) URL.revokeObjectURL(mapAnimationBatch.downloadUrl);
-    const shouldBuildPairs = mapAnimationBatch.gpxFiles.length > 0 && videoFiles.length > 0;
-    mapAnimationBatch = { ...mapAnimationBatch, videoFiles, pairs: [], isPreparing: shouldBuildPairs, status: 'idle', error: '', message: '', downloadUrl: '', filename: '' };
-    if (!shouldBuildPairs) return;
-
-    try {
-      const pairs = await buildMapAnimationBatchPairs(mapAnimationBatch.gpxFiles, videoFiles);
-      if (selectionId !== mapAnimationBatchSelectionId) return;
-      mapAnimationBatch = { ...mapAnimationBatch, videoFiles, pairs, isPreparing: false, status: 'idle', error: '' };
-    } catch (error) {
-      if (selectionId !== mapAnimationBatchSelectionId) return;
-      mapAnimationBatch = { ...mapAnimationBatch, videoFiles, pairs: [], isPreparing: false, status: 'idle', error: parseError(error, 'Unable to read video metadata.') };
+      mapAnimationBatch = { ...mapAnimationBatch, gpxFiles, pairs: [], isPreparing: false, status: 'idle', error: parseError(error, 'Unable to read GPX timestamps.') };
     }
   }
 
@@ -439,7 +416,6 @@
           onBatchSubmit={submitBatchMapAnimation}
           onGpxChange={handleMapAnimationGpxChange}
           onBatchGpxFilesChange={handleBatchMapAnimationGpxFilesChange}
-          onBatchVideoFilesChange={handleBatchMapAnimationVideoFilesChange}
           onBatchPairDurationChange={handleBatchMapAnimationPairDurationChange}
           onBatchPairOutputNameChange={handleBatchMapAnimationPairOutputNameChange}
         />
