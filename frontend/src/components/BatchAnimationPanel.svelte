@@ -137,6 +137,7 @@
     <div class="form-actions">
       <button class="primary-action" type="submit" disabled={isBusy || mapAnimationBatch.isPreparing}>Render batch ZIP</button>
     </div>
+    <p class="muted-text">Batch renders are all-or-nothing: if one pair fails, no ZIP is created.</p>
   </section>
 </form>
 
