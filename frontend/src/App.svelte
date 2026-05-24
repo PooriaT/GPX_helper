@@ -203,6 +203,13 @@
       const resolutionLabel = `${mapAnimation.resolutionWidth}x${mapAnimation.resolutionHeight}`;
 
       const formData = buildBatchMapAnimationFormData(mapAnimationBatch, mapAnimation, resolutionLabel);
+
+      requestEta(apiBase, '/api/v1/gpx/map-animate/batch/estimate', cloneFormData(formData)).then((eta) => {
+        estimatedSeconds = eta;
+      }).catch(() => {
+        estimatedSeconds = null;
+      });
+
       const { blob, filename } = await requestFile(apiBase, '/api/v1/gpx/map-animate/batch', formData, 'route-animations.zip');
       const downloadUrl = URL.createObjectURL(blob);
       mapAnimationBatch = { ...mapAnimationBatch, status: 'success', downloadUrl, filename, message: `Rendered ${mapAnimationBatch.pairs.length} route animations.` };
