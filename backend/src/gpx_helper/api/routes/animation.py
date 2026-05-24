@@ -34,6 +34,7 @@ router = APIRouter()
 
 
 BatchJob = dict[str, int | float | str | None]
+BATCH_ROUTE_ANIMATION_POLICY = "Batch route animation currently uses all-or-nothing behavior."
 
 
 def _parse_animation_inputs(
@@ -71,13 +72,18 @@ def _parse_batch_jobs(jobs_json: str) -> list[BatchJob]:
     jobs: list[BatchJob] = []
     for index, job in enumerate(payload, start=1):
         if not isinstance(job, dict):
-            raise HTTPException(status_code=400, detail=f"Job {index} must be an object")
+            raise HTTPException(status_code=400, detail=f"Batch item {index}: must be an object")
 
+        if "gpx_file_index" not in job:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Batch item {index}: missing gpx_file_index",
+            )
         gpx_file_index = job.get("gpx_file_index")
         if not isinstance(gpx_file_index, int) or isinstance(gpx_file_index, bool):
             raise HTTPException(
                 status_code=400,
-                detail=f"Job {index} gpx_file_index must be an integer",
+                detail=f"Batch item {index}: gpx_file_index must be an integer",
             )
 
         duration_seconds = job.get("duration_seconds")
@@ -88,14 +94,14 @@ def _parse_batch_jobs(jobs_json: str) -> list[BatchJob]:
         ):
             raise HTTPException(
                 status_code=400,
-                detail=f"Job {index} duration_seconds must be positive",
+                detail=f"Batch item {index}: duration_seconds must be greater than zero",
             )
 
         output_name = job.get("output_name")
         if output_name is not None and not isinstance(output_name, str):
             raise HTTPException(
                 status_code=400,
-                detail=f"Job {index} output_name must be a string",
+                detail=f"Batch item {index}: output_name must be a string",
             )
 
         jobs.append(
@@ -116,21 +122,74 @@ def _parse_batch_uploads_and_jobs(
     if not gpx_files:
         raise HTTPException(status_code=400, detail="Missing gpx_files uploads")
 
-    validated_gpx_files = [
-        validate_upload(gpx_file, f"gpx_files[{index}]")
-        for index, gpx_file in enumerate(gpx_files)
-    ]
-    jobs = _parse_batch_jobs(jobs_json)
+    validated_gpx_files = []
+    for index, gpx_file in enumerate(gpx_files, start=1):
+        try:
+            validated_gpx_files.append(validate_upload(gpx_file, f"gpx_files[{index - 1}]"))
+        except HTTPException as exc:
+            detail = exc.detail if isinstance(exc.detail, str) else "invalid uploaded GPX file"
+            raise HTTPException(
+                status_code=400,
+                detail=f"Batch item {index}: missing or invalid uploaded GPX file ({detail})",
+            ) from exc
 
+    jobs = _parse_batch_jobs(jobs_json)
+    if len(jobs) != len(validated_gpx_files):
+        raise HTTPException(
+            status_code=400,
+            detail="Batch job count must match uploaded GPX file count",
+        )
+
+    seen_gpx_indexes: set[int] = set()
     for index, job in enumerate(jobs, start=1):
         gpx_file_index = int(job["gpx_file_index"])
         if gpx_file_index < 0 or gpx_file_index >= len(validated_gpx_files):
             raise HTTPException(
                 status_code=400,
-                detail=f"Job {index} gpx_file_index does not match an uploaded GPX file",
+                detail=f"Batch item {index}: gpx_file_index is out of range",
             )
+        if gpx_file_index in seen_gpx_indexes:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Batch item {index}: duplicate gpx_file_index {gpx_file_index}",
+            )
+        seen_gpx_indexes.add(gpx_file_index)
 
     return validated_gpx_files, jobs
+
+
+def _batch_item_error(index: int, gpx_file: UploadFile, exc: Exception) -> HTTPException:
+    if isinstance(exc, HTTPException) and isinstance(exc.detail, str):
+        reason = exc.detail
+    else:
+        reason = str(exc)
+    filename = os.path.basename(gpx_file.filename or "")
+    item_label = f"Batch item {index}"
+    if filename:
+        item_label = f"{item_label} ({filename})"
+    return HTTPException(status_code=400, detail=f"{item_label} failed: {reason}")
+
+
+def _validate_batch_render_jobs(
+    gpx_paths: list[str],
+    jobs: list[BatchJob],
+    gpx_files: list[UploadFile],
+    fps: float,
+) -> None:
+    for index, job in enumerate(jobs, start=1):
+        gpx_file_index = int(job["gpx_file_index"])
+        try:
+            lats, lons = as_bad_request(load_gpx_points, gpx_paths[gpx_file_index])
+            xs, ys = as_bad_request(latlon_to_web_mercator, lats, lons)
+            as_bad_request(
+                prepare_animation_series,
+                xs,
+                ys,
+                float(job["duration_seconds"]),
+                fps=fps,
+            )
+        except Exception as exc:
+            raise _batch_item_error(index, gpx_files[gpx_file_index], exc) from exc
 
 
 def _sanitize_output_stem(value: str, fallback: str) -> str:
@@ -291,6 +350,7 @@ def estimate_map_animation_batch(
     marker_style: str = Form("default"),
     tile_type: str | None = Form(None),
 ) -> JSONResponse:
+    """Estimate batch route animation using the all-or-nothing batch policy."""
     del marker_color, trail_color, full_trail_color
     validated_gpx_files, jobs = _parse_batch_uploads_and_jobs(gpx_files, jobs_json)
 
@@ -314,25 +374,31 @@ def estimate_map_animation_batch(
         gpx_paths: list[str] = []
         for index, gpx_file in enumerate(validated_gpx_files):
             gpx_path = os.path.join(tmp_dir, f"input-{index}.gpx")
-            with open(gpx_path, "w+b") as gpx_input:
-                write_upload_to_file(gpx_file, gpx_input, "GPX")
+            try:
+                with open(gpx_path, "w+b") as gpx_input:
+                    write_upload_to_file(gpx_file, gpx_input, "GPX")
+            except Exception as exc:
+                raise _batch_item_error(index + 1, gpx_file, exc) from exc
             gpx_paths.append(gpx_path)
 
         estimated_seconds = 0.0
-        for job in jobs:
+        for index, job in enumerate(jobs, start=1):
             gpx_file_index = int(job["gpx_file_index"])
-            lats, lons = as_bad_request(load_gpx_points, gpx_paths[gpx_file_index])
-            estimated_seconds += float(
-                as_bad_request(
-                    estimate_animation_seconds,
-                    lats,
-                    lons,
-                    width_px,
-                    height_px,
-                    float(job["duration_seconds"]),
-                    fps=fps,
+            try:
+                lats, lons = as_bad_request(load_gpx_points, gpx_paths[gpx_file_index])
+                estimated_seconds += float(
+                    as_bad_request(
+                        estimate_animation_seconds,
+                        lats,
+                        lons,
+                        width_px,
+                        height_px,
+                        float(job["duration_seconds"]),
+                        fps=fps,
+                    )
                 )
-            )
+            except Exception as exc:
+                raise _batch_item_error(index, validated_gpx_files[gpx_file_index], exc) from exc
 
     return JSONResponse({"estimated_seconds": round(float(estimated_seconds), 2)})
 
@@ -434,6 +500,7 @@ def animate_gpx_routes_batch(
     marker_style: str = Form("default"),
     tile_type: str | None = Form(None),
 ) -> StreamingResponse:
+    """Render batch route animation using the all-or-nothing batch policy."""
     validated_gpx_files, jobs = _parse_batch_uploads_and_jobs(gpx_files, jobs_json)
 
     width_px, height_px = _parse_animation_inputs(
@@ -456,37 +523,45 @@ def animate_gpx_routes_batch(
         gpx_paths: list[str] = []
         for index, gpx_file in enumerate(validated_gpx_files):
             gpx_path = os.path.join(tmp_dir, f"input-{index}.gpx")
-            with open(gpx_path, "w+b") as gpx_input:
-                write_upload_to_file(gpx_file, gpx_input, "GPX")
+            try:
+                with open(gpx_path, "w+b") as gpx_input:
+                    write_upload_to_file(gpx_file, gpx_input, "GPX")
+            except Exception as exc:
+                raise _batch_item_error(index + 1, gpx_file, exc) from exc
             gpx_paths.append(gpx_path)
+
+        _validate_batch_render_jobs(gpx_paths, jobs, validated_gpx_files, fps)
 
         zip_buffer = BytesIO()
         used_names: set[str] = set()
         with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
-            for index, job in enumerate(jobs):
+            for index, job in enumerate(jobs, start=1):
                 gpx_file_index = int(job["gpx_file_index"])
                 output_path = os.path.join(tmp_dir, f"output-{index}.mp4")
-                _render_animation_file(
-                    gpx_paths[gpx_file_index],
-                    output_path,
-                    float(job["duration_seconds"]),
-                    fps,
-                    width_px,
-                    height_px,
-                    marker_color,
-                    trail_color,
-                    full_trail_color,
-                    full_trail_opacity,
-                    line_width,
-                    line_opacity,
-                    marker_size,
-                    marker_style,
-                    tile_template,
-                    tile_subdomains,
-                )
-                archive.write(
-                    output_path,
-                    _batch_output_name(job, validated_gpx_files[gpx_file_index], used_names),
-                )
+                try:
+                    _render_animation_file(
+                        gpx_paths[gpx_file_index],
+                        output_path,
+                        float(job["duration_seconds"]),
+                        fps,
+                        width_px,
+                        height_px,
+                        marker_color,
+                        trail_color,
+                        full_trail_color,
+                        full_trail_opacity,
+                        line_width,
+                        line_opacity,
+                        marker_size,
+                        marker_style,
+                        tile_template,
+                        tile_subdomains,
+                    )
+                    archive.write(
+                        output_path,
+                        _batch_output_name(job, validated_gpx_files[gpx_file_index], used_names),
+                    )
+                except Exception as exc:
+                    raise _batch_item_error(index, validated_gpx_files[gpx_file_index], exc) from exc
 
         return stream_payload(zip_buffer.getvalue(), "route-animations.zip", "application/zip")

@@ -149,6 +149,7 @@ describe('App', () => {
     expect(screen.getByLabelText(/^GPX files$/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^Video files$/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Render batch ZIP/i })).toBeInTheDocument();
+    expect(screen.getByText(/Batch renders are all-or-nothing: if one pair fails, no ZIP is created\./i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Render animation$/i })).not.toBeInTheDocument();
   });
 
@@ -281,6 +282,59 @@ describe('App', () => {
       expect(screen.getByText(/Rendered 2 route animations/i)).toBeInTheDocument();
     });
     expect(screen.queryByText(/estimate unavailable/i)).not.toBeInTheDocument();
+  });
+
+  it('displays batch item errors returned by the backend', async () => {
+    window.location.hash = '#/animation';
+    stubVideoDuration(32);
+    const fetchMock = vi.fn((url) => {
+      const path = String(url);
+      if (path.endsWith('/api/v1/capabilities')) {
+        return Promise.reject(new Error('Capabilities unavailable'));
+      }
+      if (path.endsWith('/api/v1/gpx/map-animate/batch/estimate')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ estimated_seconds: 42 }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' }
+          })
+        );
+      }
+      if (path.endsWith('/api/v1/gpx/map-animate/batch')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({ detail: 'Batch item 2 (ride-two.gpx) failed: Need at least 2 points to animate' }),
+            { status: 400, headers: { 'content-type': 'application/json' } }
+          )
+        );
+      }
+      return Promise.reject(new Error(`Unexpected request: ${path}`));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(App);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Batch GPX\/video pairs/i })).toBeInTheDocument();
+    });
+    await fireEvent.click(screen.getByRole('button', { name: /Batch GPX\/video pairs/i }));
+    await fireEvent.change(screen.getByLabelText(/^GPX files$/i), {
+      target: { files: [buildGpxFile('ride-one.gpx'), buildGpxFile('ride-two.gpx')] }
+    });
+    await fireEvent.change(screen.getByLabelText(/^Video files$/i), {
+      target: { files: [buildVideoFile('ride-one.mp4'), buildVideoFile('ride-two.mp4')] }
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Duration for pair 2/i)).toHaveValue(32);
+    });
+
+    await fireEvent.submit(screen.getByRole('button', { name: /Render batch ZIP/i }).closest('form'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Batch item 2 (ride-two.gpx) failed: Need at least 2 points to animate'
+      );
+    });
+    expect(screen.queryByText(/Rendered 2 route animations/i)).not.toBeInTheDocument();
   });
 
   it('shows the selected marker color in the route animation style controls', async () => {
