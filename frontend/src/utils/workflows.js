@@ -22,6 +22,17 @@ export async function buildVideoClip(file, index) {
   };
 }
 
+export async function buildMapAnimationBatchPair(gpxFile, videoFile, index) {
+  const durationSeconds = await loadVideoDuration(videoFile);
+  const gpxBaseName = gpxFile?.name?.replace(/\.[^./\\]+$/, '') || `route-${index + 1}`;
+  return {
+    gpxFile,
+    videoFile,
+    durationSeconds: Math.max(1, Math.round(durationSeconds)),
+    outputName: gpxBaseName
+  };
+}
+
 export async function parseGpxDuration(file) {
   if (!file) return null;
   const text = await readFileText(file);

@@ -1,4 +1,4 @@
-import { buildMapAnimationFormData, buildTelemetryFormData, resolveTelemetryBackgroundColor } from './formData';
+import { buildBatchMapAnimationFormData, buildMapAnimationFormData, buildTelemetryFormData, resolveTelemetryBackgroundColor } from './formData';
 
 describe('map animation form data', () => {
   function buildMapAnimation(overrides = {}) {
@@ -28,6 +28,30 @@ describe('map animation form data', () => {
     const formData = buildMapAnimationFormData(buildMapAnimation(), '640x640');
 
     expect(formData.get('marker_style')).toBe('default');
+  });
+
+  it('includes batch jobs_json and multiple GPX files in batch animation requests', () => {
+    const firstGpx = new File(['gpx-1'], 'first.gpx', { type: 'application/gpx+xml' });
+    const secondGpx = new File(['gpx-2'], 'second.gpx', { type: 'application/gpx+xml' });
+    const formData = buildBatchMapAnimationFormData(
+      {
+        gpxFiles: [firstGpx, secondGpx],
+        pairs: [
+          { gpxFile: firstGpx, durationSeconds: 12, outputName: 'first-route' },
+          { gpxFile: secondGpx, durationSeconds: 24, outputName: '' }
+        ]
+      },
+      buildMapAnimation({ markerStyle: 'bike' }),
+      '640x640'
+    );
+
+    expect(formData.getAll('gpx_files')).toEqual([firstGpx, secondGpx]);
+    expect(JSON.parse(formData.get('jobs_json'))).toEqual([
+      { gpx_file_index: 0, duration_seconds: 12, output_name: 'first-route' },
+      { gpx_file_index: 1, duration_seconds: 24 }
+    ]);
+    expect(formData.get('marker_style')).toBe('bike');
+    expect(formData.get('resolution')).toBe('640x640');
   });
 });
 
