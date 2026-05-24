@@ -10,6 +10,7 @@ also includes a Svelte + Vite frontend in `frontend/` and a Python/FastAPI backe
 - Falls back to file modification time when metadata is missing, with clear warnings.
 - Works with GPX files that include timezone-aware timestamps (UTC recommended).
 - Renders GPX tracks into MP4 map animations with OpenStreetMap tiles.
+- Renders batch GPX route animations into a ZIP when paired with video durations.
 - Supports multi-clip trimming and telemetry overlay rendering (heart rate, speed, elevation).
 
 ## Requirements

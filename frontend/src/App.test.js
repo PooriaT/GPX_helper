@@ -28,6 +28,38 @@ describe('App', () => {
     );
   }
 
+  function buildGpxFile(name) {
+    return new File(['<gpx></gpx>'], name, { type: 'application/gpx+xml' });
+  }
+
+  function buildVideoFile(name) {
+    return new File(['video'], name, { type: 'video/mp4' });
+  }
+
+  function stubVideoDuration(durationSeconds) {
+    if (!URL.createObjectURL) {
+      Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn() });
+    }
+    if (!URL.revokeObjectURL) {
+      Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
+    }
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:video');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const createElement = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation((tagName, options) => {
+      if (String(tagName).toLowerCase() !== 'video') return createElement(tagName, options);
+      return {
+        preload: '',
+        duration: durationSeconds,
+        onloadedmetadata: null,
+        onerror: null,
+        set src(_value) {
+          queueMicrotask(() => this.onloadedmetadata?.());
+        }
+      };
+    });
+  }
+
   it('renders the trim page by default with header navigation', () => {
     render(App);
 
@@ -96,6 +128,48 @@ describe('App', () => {
     expect(screen.queryByRole('option', { name: /Backend default/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Render animation/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Trim by time/i })).not.toBeInTheDocument();
+  });
+
+  it('shows batch route animation controls after selecting batch mode', async () => {
+    window.location.hash = '#/animation';
+    render(App);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Batch GPX\/video pairs/i })).toBeInTheDocument();
+    });
+    await fireEvent.click(screen.getByRole('button', { name: /Batch GPX\/video pairs/i }));
+
+    expect(screen.getByLabelText(/^GPX files$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Video files$/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Render batch ZIP/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Render animation$/i })).not.toBeInTheDocument();
+  });
+
+  it('displays order-based batch route animation pairs for review', async () => {
+    window.location.hash = '#/animation';
+    stubVideoDuration(32);
+    render(App);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Batch GPX\/video pairs/i })).toBeInTheDocument();
+    });
+    await fireEvent.click(screen.getByRole('button', { name: /Batch GPX\/video pairs/i }));
+
+    await fireEvent.change(screen.getByLabelText(/^GPX files$/i), {
+      target: { files: [buildGpxFile('first.gpx'), buildGpxFile('second.gpx')] }
+    });
+    await fireEvent.change(screen.getByLabelText(/^Video files$/i), {
+      target: { files: [buildVideoFile('first.mp4'), buildVideoFile('second.mp4')] }
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('first.gpx')).toBeInTheDocument();
+      expect(screen.getByText('first.mp4')).toBeInTheDocument();
+      expect(screen.getByText('second.gpx')).toBeInTheDocument();
+      expect(screen.getByText('second.mp4')).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText(/Duration for pair 1/i)).toHaveValue(32);
+    expect(screen.getByLabelText(/Output name for pair 2/i)).toHaveValue('second');
   });
 
   it('shows the selected marker color in the route animation style controls', async () => {
