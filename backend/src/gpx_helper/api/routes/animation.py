@@ -5,6 +5,7 @@ import json
 import os
 import re
 import tempfile
+from typing import TypedDict
 import zipfile
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
@@ -34,6 +35,19 @@ router = APIRouter()
 
 
 BatchJob = dict[str, int | float | str | None]
+
+
+class PreparedBatchJob(TypedDict):
+    gpx_file_index: int
+    lats: list[float]
+    lons: list[float]
+    xs: list[float]
+    ys: list[float]
+    frame_indices: list[int]
+    total_frames: int
+    fps: float
+
+
 BATCH_ROUTE_ANIMATION_POLICY = "Batch route animation currently uses all-or-nothing behavior."
 
 
@@ -170,18 +184,19 @@ def _batch_item_error(index: int, gpx_file: UploadFile, exc: Exception) -> HTTPE
     return HTTPException(status_code=400, detail=f"{item_label} failed: {reason}")
 
 
-def _validate_batch_render_jobs(
+def _prepare_batch_render_jobs(
     gpx_paths: list[str],
     jobs: list[BatchJob],
     gpx_files: list[UploadFile],
     fps: float,
-) -> None:
+) -> list[PreparedBatchJob]:
+    prepared_jobs: list[PreparedBatchJob] = []
     for index, job in enumerate(jobs, start=1):
         gpx_file_index = int(job["gpx_file_index"])
         try:
             lats, lons = as_bad_request(load_gpx_points, gpx_paths[gpx_file_index])
             xs, ys = as_bad_request(latlon_to_web_mercator, lats, lons)
-            as_bad_request(
+            xs, ys, frame_indices, total_frames, effective_fps = as_bad_request(
                 prepare_animation_series,
                 xs,
                 ys,
@@ -190,6 +205,64 @@ def _validate_batch_render_jobs(
             )
         except Exception as exc:
             raise _batch_item_error(index, gpx_files[gpx_file_index], exc) from exc
+        prepared_jobs.append(
+            {
+                "gpx_file_index": gpx_file_index,
+                "lats": lats,
+                "lons": lons,
+                "xs": xs,
+                "ys": ys,
+                "frame_indices": frame_indices,
+                "total_frames": total_frames,
+                "fps": effective_fps,
+            }
+        )
+    return prepared_jobs
+
+
+def _render_prepared_animation_file(
+    prepared_job: PreparedBatchJob,
+    video_output_path: str,
+    width_px: int,
+    height_px: int,
+    marker_color: str,
+    trail_color: str,
+    full_trail_color: str,
+    full_trail_opacity: float,
+    line_width: float,
+    line_opacity: float,
+    marker_size: float,
+    marker_style: str,
+    tile_template: str,
+    tile_subdomains: tuple[str, ...],
+) -> None:
+    lats = prepared_job["lats"]
+    lons = prepared_job["lons"]
+    as_bad_request(
+        create_animation,
+        prepared_job["xs"],
+        prepared_job["ys"],
+        prepared_job["frame_indices"],
+        prepared_job["total_frames"],
+        prepared_job["fps"],
+        width_px,
+        height_px,
+        video_output_path,
+        min_lat=min(lats),
+        max_lat=max(lats),
+        min_lon=min(lons),
+        max_lon=max(lons),
+        marker_color=marker_color,
+        animated_line_color=trail_color,
+        full_line_color=full_trail_color,
+        full_line_opacity=full_trail_opacity,
+        line_width=line_width,
+        animated_line_opacity=line_opacity,
+        marker_size=marker_size,
+        marker_style=marker_style,
+        tile_template=tile_template,
+        tile_subdomains=tile_subdomains,
+    )
 
 
 def _sanitize_output_stem(value: str, fallback: str) -> str:
@@ -530,20 +603,18 @@ def animate_gpx_routes_batch(
                 raise _batch_item_error(index + 1, gpx_file, exc) from exc
             gpx_paths.append(gpx_path)
 
-        _validate_batch_render_jobs(gpx_paths, jobs, validated_gpx_files, fps)
+        prepared_jobs = _prepare_batch_render_jobs(gpx_paths, jobs, validated_gpx_files, fps)
 
         zip_buffer = BytesIO()
         used_names: set[str] = set()
         with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
-            for index, job in enumerate(jobs, start=1):
-                gpx_file_index = int(job["gpx_file_index"])
+            for index, (job, prepared_job) in enumerate(zip(jobs, prepared_jobs), start=1):
+                gpx_file_index = int(prepared_job["gpx_file_index"])
                 output_path = os.path.join(tmp_dir, f"output-{index}.mp4")
                 try:
-                    _render_animation_file(
-                        gpx_paths[gpx_file_index],
+                    _render_prepared_animation_file(
+                        prepared_job,
                         output_path,
-                        float(job["duration_seconds"]),
-                        fps,
                         width_px,
                         height_px,
                         marker_color,

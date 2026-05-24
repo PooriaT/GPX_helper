@@ -10,6 +10,7 @@ import zipfile
 from fastapi.testclient import TestClient
 
 from gpx_helper.api.main import app
+from gpx_helper.api.routes import animation as animation_route
 
 
 GPX_NS = "http://www.topografix.com/GPX/1/1"
@@ -540,10 +541,14 @@ class ApiTests(unittest.TestCase):
         with mock.patch(
             "gpx_helper.api.routes.animation.create_animation",
             side_effect=_fake_animation,
-        ) as mock_create_animation:
+        ) as mock_create_animation, mock.patch(
+            "gpx_helper.api.routes.animation.load_gpx_points",
+            wraps=animation_route.load_gpx_points,
+        ) as mock_load_gpx_points:
             response = self.client.post("/api/v1/gpx/map-animate/batch", files=files, data=data)
 
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(mock_load_gpx_points.call_count, 2)
         self.assertEqual(response.headers["content-type"], "application/zip")
         self.assertIn(
             "attachment; filename=route-animations.zip",
