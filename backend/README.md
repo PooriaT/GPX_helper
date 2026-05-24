@@ -14,8 +14,11 @@ The API is implemented in `backend/src/gpx_helper/api/main.py` and exposes:
   the animation work.
 - `POST /api/v1/gpx/map-animate` to render a GPX track into an MP4 map animation
   using a requested duration and resolution.
-  Override `MAP_TILE_URL_TEMPLATE` or `MAP_TILE_USER_AGENT` if you need to point at your
-  own compliant tile server.
+- `POST /api/v1/gpx/map-animate/batch` to render multiple GPX route animations into
+  one ZIP file.
+
+Override `MAP_TILE_URL_TEMPLATE` or `MAP_TILE_USER_AGENT` if you need to point at your
+own compliant tile server.
 
 GPX trimming logic lives in `backend/src/gpx_helper/gpx_splitter.py`. The trim-by-video
 endpoint expects the client to send start/end timestamps plus the video duration derived
