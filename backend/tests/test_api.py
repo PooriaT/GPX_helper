@@ -10,6 +10,7 @@ import zipfile
 from fastapi.testclient import TestClient
 
 from gpx_helper.api.main import app
+from gpx_helper.api.routes import animation as animation_route
 
 
 GPX_NS = "http://www.topografix.com/GPX/1/1"
@@ -23,6 +24,16 @@ def _build_gpx() -> bytes:
         "<trkpt lat=\"0\" lon=\"0\"><time>2024-01-01T00:00:00Z</time></trkpt>"
         "<trkpt lat=\"0\" lon=\"0\"><time>2024-01-01T00:00:10Z</time></trkpt>"
         "<trkpt lat=\"0\" lon=\"0\"><time>2024-01-01T00:00:20Z</time></trkpt>"
+        "</trkseg></trk></gpx>"
+    ).encode("utf-8")
+
+
+def _build_one_point_gpx() -> bytes:
+    return (
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+        "<gpx version=\"1.1\" creator=\"test\" xmlns=\"http://www.topografix.com/GPX/1/1\">"
+        "<trk><trkseg>"
+        "<trkpt lat=\"0\" lon=\"0\"><time>2024-01-01T00:00:00Z</time></trkpt>"
         "</trkseg></trk></gpx>"
     ).encode("utf-8")
 
@@ -77,6 +88,8 @@ class ApiTests(unittest.TestCase):
         self.assertIn("POST /api/v1/gpx/trim-by-videos", payload["endpoints"])
         self.assertIn("POST /api/v1/gpx/map-animate/estimate", payload["endpoints"])
         self.assertIn("POST /api/v1/gpx/map-animate", payload["endpoints"])
+        self.assertIn("POST /api/v1/gpx/map-animate/batch", payload["endpoints"])
+        self.assertIn("POST /api/v1/gpx/map-animate/batch/estimate", payload["endpoints"])
         self.assertIn("POST /api/v1/gpx/telemetry-video/estimate", payload["endpoints"])
         self.assertIn("POST /api/v1/gpx/telemetry-video", payload["endpoints"])
         self.assertEqual(
@@ -475,6 +488,338 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(
             response.json()["detail"],
             "marker_style must be one of: bike, default, runner",
+        )
+
+    def test_map_animation_batch_success(self) -> None:
+        files = [
+            ("gpx_files", ("track one.gpx", _build_gpx(), "application/gpx+xml")),
+            ("gpx_files", ("track-two.gpx", _build_gpx(), "application/gpx+xml")),
+        ]
+        data = {
+            "jobs_json": json.dumps(
+                [
+                    {"gpx_file_index": 0, "duration_seconds": 5, "output_name": "clip.mp4"},
+                    {"gpx_file_index": 1, "duration_seconds": 7, "output_name": "clip"},
+                ]
+            ),
+            "fps": "24",
+            "resolution": "640x480",
+            "marker_color": "#ef4444",
+            "marker_style": "bike",
+            "trail_color": "#22c55e",
+            "full_trail_color": "#111827",
+            "full_trail_opacity": "0.4",
+            "line_width": "4.5",
+            "line_opacity": "0.65",
+            "marker_size": "8",
+            "tile_type": "cyclosm",
+        }
+        captured_calls = []
+
+        def _fake_animation(
+            xs,
+            ys,
+            frame_indices,
+            total_frames,
+            fps,
+            width_px,
+            height_px,
+            output_path,
+            **kwargs,
+        ):
+            captured_calls.append(
+                {
+                    "fps": fps,
+                    "width_px": width_px,
+                    "height_px": height_px,
+                    **kwargs,
+                }
+            )
+            with open(output_path, "wb") as f:
+                f.write(f"mp4-{len(captured_calls)}".encode("utf-8"))
+
+        with mock.patch(
+            "gpx_helper.api.routes.animation.create_animation",
+            side_effect=_fake_animation,
+        ) as mock_create_animation, mock.patch(
+            "gpx_helper.api.routes.animation.load_gpx_points",
+            wraps=animation_route.load_gpx_points,
+        ) as mock_load_gpx_points:
+            response = self.client.post("/api/v1/gpx/map-animate/batch", files=files, data=data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(mock_load_gpx_points.call_count, 2)
+        self.assertEqual(response.headers["content-type"], "application/zip")
+        self.assertIn(
+            "attachment; filename=route-animations.zip",
+            response.headers["content-disposition"],
+        )
+        self.assertEqual(mock_create_animation.call_count, 2)
+        with zipfile.ZipFile(BytesIO(response.content)) as archive:
+            self.assertEqual(archive.namelist(), ["clip.mp4", "clip-2.mp4"])
+            self.assertEqual(archive.read("clip.mp4"), b"mp4-1")
+            self.assertEqual(archive.read("clip-2.mp4"), b"mp4-2")
+
+        for captured in captured_calls:
+            self.assertEqual(captured["fps"], 24.0)
+            self.assertEqual(captured["width_px"], 640)
+            self.assertEqual(captured["height_px"], 480)
+            self.assertEqual(captured["marker_color"], "#ef4444")
+            self.assertEqual(captured["animated_line_color"], "#22c55e")
+            self.assertEqual(captured["full_line_color"], "#111827")
+            self.assertEqual(captured["full_line_opacity"], 0.4)
+            self.assertEqual(captured["line_width"], 4.5)
+            self.assertEqual(captured["animated_line_opacity"], 0.65)
+            self.assertEqual(captured["marker_size"], 8.0)
+            self.assertEqual(captured["marker_style"], "bike")
+            self.assertEqual(
+                captured["tile_template"],
+                "https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png",
+            )
+            self.assertEqual(captured["tile_subdomains"], ("a", "b", "c"))
+
+    def test_map_animation_batch_rejects_invalid_jobs_json(self) -> None:
+        files = [
+            ("gpx_files", ("track.gpx", _build_gpx(), "application/gpx+xml")),
+        ]
+        data = {
+            "jobs_json": "{not valid json}",
+            "resolution": "640x480",
+        }
+
+        response = self.client.post("/api/v1/gpx/map-animate/batch", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "jobs_json must be valid JSON")
+
+    def test_map_animation_batch_rejects_empty_jobs(self) -> None:
+        files = [
+            ("gpx_files", ("track.gpx", _build_gpx(), "application/gpx+xml")),
+        ]
+        data = {
+            "jobs_json": "[]",
+            "resolution": "640x480",
+        }
+
+        response = self.client.post("/api/v1/gpx/map-animate/batch", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "jobs_json must be a non-empty array")
+
+    def test_map_animation_batch_rejects_invalid_gpx_index(self) -> None:
+        files = [
+            ("gpx_files", ("track.gpx", _build_gpx(), "application/gpx+xml")),
+        ]
+        data = {
+            "jobs_json": json.dumps([{"gpx_file_index": 1, "duration_seconds": 5}]),
+            "resolution": "640x480",
+        }
+
+        response = self.client.post("/api/v1/gpx/map-animate/batch", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json()["detail"],
+            "Batch item 1: gpx_file_index is out of range",
+        )
+
+    def test_map_animation_batch_rejects_invalid_pair_duration_with_item(self) -> None:
+        files = [
+            ("gpx_files", ("track-one.gpx", _build_gpx(), "application/gpx+xml")),
+            ("gpx_files", ("track-two.gpx", _build_gpx(), "application/gpx+xml")),
+        ]
+        data = {
+            "jobs_json": json.dumps(
+                [
+                    {"gpx_file_index": 0, "duration_seconds": 5},
+                    {"gpx_file_index": 1, "duration_seconds": 0},
+                ]
+            ),
+            "resolution": "640x480",
+        }
+
+        response = self.client.post("/api/v1/gpx/map-animate/batch", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json()["detail"],
+            "Batch item 2: duration_seconds must be greater than zero",
+        )
+
+    def test_map_animation_batch_rejects_duplicate_gpx_index_with_item(self) -> None:
+        files = [
+            ("gpx_files", ("track-one.gpx", _build_gpx(), "application/gpx+xml")),
+            ("gpx_files", ("track-two.gpx", _build_gpx(), "application/gpx+xml")),
+        ]
+        data = {
+            "jobs_json": json.dumps(
+                [
+                    {"gpx_file_index": 0, "duration_seconds": 5},
+                    {"gpx_file_index": 0, "duration_seconds": 7},
+                ]
+            ),
+            "resolution": "640x480",
+        }
+
+        response = self.client.post("/api/v1/gpx/map-animate/batch", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "Batch item 2: duplicate gpx_file_index 0")
+
+    def test_map_animation_batch_render_failure_identifies_item_and_file(self) -> None:
+        files = [
+            ("gpx_files", ("ride-one.gpx", _build_gpx(), "application/gpx+xml")),
+            ("gpx_files", ("ride-two.gpx", _build_gpx(), "application/gpx+xml")),
+        ]
+        data = {
+            "jobs_json": json.dumps(
+                [
+                    {"gpx_file_index": 0, "duration_seconds": 5},
+                    {"gpx_file_index": 1, "duration_seconds": 7},
+                ]
+            ),
+            "resolution": "640x480",
+        }
+        calls = 0
+
+        def _fake_animation(
+            xs,
+            ys,
+            frame_indices,
+            total_frames,
+            fps,
+            width_px,
+            height_px,
+            output_path,
+            **kwargs,
+        ):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise ValueError("encoder failed")
+            with open(output_path, "wb") as f:
+                f.write(b"mp4-bytes")
+
+        with mock.patch(
+            "gpx_helper.api.routes.animation.create_animation",
+            side_effect=_fake_animation,
+        ):
+            response = self.client.post("/api/v1/gpx/map-animate/batch", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertNotEqual(response.headers["content-type"], "application/zip")
+        self.assertEqual(
+            response.json()["detail"],
+            "Batch item 2 (ride-two.gpx) failed: encoder failed",
+        )
+
+    def test_map_animation_batch_preflight_rejects_invalid_gpx_before_rendering(self) -> None:
+        files = [
+            ("gpx_files", ("ride-one.gpx", _build_gpx(), "application/gpx+xml")),
+            ("gpx_files", ("ride-two.gpx", _build_one_point_gpx(), "application/gpx+xml")),
+        ]
+        data = {
+            "jobs_json": json.dumps(
+                [
+                    {"gpx_file_index": 0, "duration_seconds": 5},
+                    {"gpx_file_index": 1, "duration_seconds": 7},
+                ]
+            ),
+            "resolution": "640x480",
+        }
+
+        with mock.patch("gpx_helper.api.routes.animation.create_animation") as mock_create_animation:
+            response = self.client.post("/api/v1/gpx/map-animate/batch", files=files, data=data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(mock_create_animation.call_count, 0)
+        self.assertNotEqual(response.headers["content-type"], "application/zip")
+        self.assertEqual(
+            response.json()["detail"],
+            "Batch item 2 (ride-two.gpx) failed: Need at least 2 points to animate",
+        )
+
+    def test_map_animation_batch_eta_success(self) -> None:
+        files = [
+            ("gpx_files", ("track-one.gpx", _build_gpx(), "application/gpx+xml")),
+            ("gpx_files", ("track-two.gpx", _build_gpx(), "application/gpx+xml")),
+        ]
+        data = {
+            "jobs_json": json.dumps(
+                [
+                    {"gpx_file_index": 0, "duration_seconds": 5, "output_name": "one"},
+                    {"gpx_file_index": 1, "duration_seconds": 7, "output_name": "two"},
+                ]
+            ),
+            "fps": "12",
+            "resolution": "640x480",
+            "marker_color": "#ef4444",
+            "marker_style": "bike",
+            "trail_color": "#22c55e",
+            "full_trail_color": "#111827",
+            "full_trail_opacity": "0.4",
+            "line_width": "4.5",
+            "line_opacity": "0.65",
+            "marker_size": "8",
+            "tile_type": "cyclosm",
+        }
+        with mock.patch(
+            "gpx_helper.api.routes.animation.estimate_animation_seconds",
+            side_effect=[1.234, 2.345],
+        ) as mock_estimate:
+            response = self.client.post(
+                "/api/v1/gpx/map-animate/batch/estimate", files=files, data=data
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"estimated_seconds": 3.58})
+        self.assertEqual(mock_estimate.call_count, 2)
+        self.assertEqual(mock_estimate.call_args_list[0].args[2:5], (640, 480, 5.0))
+        self.assertEqual(mock_estimate.call_args_list[0].kwargs["fps"], 12.0)
+        self.assertEqual(mock_estimate.call_args_list[1].args[2:5], (640, 480, 7.0))
+
+    def test_map_animation_batch_eta_rejects_invalid_gpx_index(self) -> None:
+        files = [
+            ("gpx_files", ("track.gpx", _build_gpx(), "application/gpx+xml")),
+        ]
+        data = {
+            "jobs_json": json.dumps([{"gpx_file_index": 2, "duration_seconds": 5}]),
+            "resolution": "640x480",
+        }
+
+        response = self.client.post(
+            "/api/v1/gpx/map-animate/batch/estimate", files=files, data=data
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json()["detail"],
+            "Batch item 1: gpx_file_index is out of range",
+        )
+
+    def test_map_animation_batch_eta_rejects_invalid_duration_with_item(self) -> None:
+        files = [
+            ("gpx_files", ("track-one.gpx", _build_gpx(), "application/gpx+xml")),
+            ("gpx_files", ("track-two.gpx", _build_gpx(), "application/gpx+xml")),
+        ]
+        data = {
+            "jobs_json": json.dumps(
+                [
+                    {"gpx_file_index": 0, "duration_seconds": 5},
+                    {"gpx_file_index": 1, "duration_seconds": 0},
+                ]
+            ),
+            "resolution": "640x480",
+        }
+
+        response = self.client.post(
+            "/api/v1/gpx/map-animate/batch/estimate", files=files, data=data
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json()["detail"],
+            "Batch item 2: duration_seconds must be greater than zero",
         )
 
     def test_map_animation_eta_success(self) -> None:

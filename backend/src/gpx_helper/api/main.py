@@ -37,6 +37,8 @@ def create_app() -> FastAPI:
                     "POST /api/v1/gpx/trim-by-videos",
                     "POST /api/v1/gpx/map-animate/estimate",
                     "POST /api/v1/gpx/map-animate",
+                    "POST /api/v1/gpx/map-animate/batch",
+                    "POST /api/v1/gpx/map-animate/batch/estimate",
                     "POST /api/v1/gpx/telemetry-video/estimate",
                     "POST /api/v1/gpx/telemetry-video",
                 ],

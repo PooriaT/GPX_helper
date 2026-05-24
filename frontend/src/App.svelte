@@ -8,15 +8,16 @@
   import TrimPage from './components/TrimPage.svelte';
   import { DEFAULT_API_BASE, MAP_TILE_OPTIONS, PAGE_DESCRIPTIONS, PAGES, TASKS, TELEMETRY_TYPE_OPTIONS, normalizeMapTileOptions } from './constants';
   import { cloneFormData, deriveMp4Filename, parseError, requestCapabilities, requestEta, requestFile } from './utils/api';
-  import { buildMapAnimationFormData, buildTelemetryFormData, buildTrimByTimeFormData, buildTrimByVideosFormData, resolveTelemetryBackgroundColor } from './utils/formData';
+  import { buildBatchMapAnimationFormData, buildMapAnimationFormData, buildTelemetryFormData, buildTrimByTimeFormData, buildTrimByVideosFormData, resolveTelemetryBackgroundColor } from './utils/formData';
   import { formatDurationLabel, toIsoString, toLocalDateTimeValue } from './utils/time';
-  import { buildVideoClip, deriveVideoTimes, ensureRangeFitsGpx, ensureVideosFitGpx, parseGpxDuration } from './utils/workflows';
+  import { buildMapAnimationBatchPair, buildVideoClip, deriveVideoTimes, ensureRangeFitsGpx, ensureVideosFitGpx, parseGpxDuration } from './utils/workflows';
 
   let apiBase = DEFAULT_API_BASE;
 
   let trimByTime = { startLocal: '', endLocal: '', gpxFile: null, videoFile: null, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
   let trimByVideos = { gpxFile: null, videoFiles: [], clips: [], totalDurationSeconds: 0, isPreparing: false, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
   let mapAnimation = { gpxFile: null, durationSeconds: 45, fps: 30, resolutionWidth: 1024, resolutionHeight: 1024, tileType: MAP_TILE_OPTIONS[0]?.value ?? 'osm', markerStyle: 'default', markerColor: '#0ea5e9', trailColor: '#0ea5e9', fullTrailColor: '#111827', fullTrailOpacity: 0.8, markerSize: 6, lineWidth: 2.5, lineOpacity: 1, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
+  let mapAnimationBatch = { gpxFiles: [], pairs: [], isPreparing: false, status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
   let telemetryVideo = { gpxFile: null, durationSeconds: 4, fps: 30, resolutionWidth: 1024, resolutionHeight: 1024, telemetryType: 'elevation_value', backgroundMode: 'transparent', backgroundColor: '#000000', status: 'idle', error: '', downloadUrl: '', filename: '', message: '' };
 
   let mapTileOptions = MAP_TILE_OPTIONS;
@@ -29,9 +30,10 @@
   let activeRequestLabel = '';
   let estimatedSeconds = null;
   let trimByVideosSelectionId = 0;
+  let mapAnimationBatchSelectionId = 0;
   let currentPage = defaultPage;
 
-  $: isBusy = [trimByTime, trimByVideos, mapAnimation, telemetryVideo].some((state) => state.status === 'loading');
+  $: isBusy = [trimByTime, trimByVideos, mapAnimation, mapAnimationBatch, telemetryVideo].some((state) => state.status === 'loading');
   $: activePage = pages.find((page) => page.id === currentPage) ?? pages[0];
   $: activePageDescription = pageDescriptions[currentPage] ?? pageDescriptions[defaultPage];
   $: selectedTask = tasks.some((task) => task.id === currentPage) ? currentPage : '';
@@ -58,7 +60,7 @@
   });
 
   onDestroy(() => {
-    [trimByTime, trimByVideos, mapAnimation, telemetryVideo].forEach((state) => {
+    [trimByTime, trimByVideos, mapAnimation, mapAnimationBatch, telemetryVideo].forEach((state) => {
       if (state.downloadUrl) URL.revokeObjectURL(state.downloadUrl);
     });
   });
@@ -179,6 +181,41 @@
     }
   }
 
+  async function submitBatchMapAnimation() {
+    if (mapAnimationBatch.downloadUrl) URL.revokeObjectURL(mapAnimationBatch.downloadUrl);
+    startRequest('Rendering batch route animations...');
+    mapAnimationBatch = { ...mapAnimationBatch, status: 'loading', error: '', message: '', downloadUrl: '', filename: '' };
+
+    try {
+      if (!mapAnimationBatch.gpxFiles.length) throw new Error('Upload at least one GPX file to animate.');
+      if (mapAnimationBatch.pairs.length !== mapAnimationBatch.gpxFiles.length) {
+        throw new Error('Review the GPX durations before rendering.');
+      }
+      const invalidPair = mapAnimationBatch.pairs.find((pair) => !Number(pair.durationSeconds) || Number(pair.durationSeconds) <= 0);
+      if (invalidPair) throw new Error('Every pair needs a duration greater than zero.');
+      if (!mapAnimation.fps || mapAnimation.fps <= 0) throw new Error('Frames per second must be greater than zero.');
+      if (!mapAnimation.resolutionWidth || !mapAnimation.resolutionHeight) throw new Error('Enter a resolution for the export.');
+      if (mapAnimation.resolutionWidth <= 0 || mapAnimation.resolutionHeight <= 0) throw new Error('Resolution must be greater than zero.');
+      const resolutionLabel = `${mapAnimation.resolutionWidth}x${mapAnimation.resolutionHeight}`;
+
+      const formData = buildBatchMapAnimationFormData(mapAnimationBatch, mapAnimation, resolutionLabel);
+
+      requestEta(apiBase, '/api/v1/gpx/map-animate/batch/estimate', cloneFormData(formData)).then((eta) => {
+        estimatedSeconds = eta;
+      }).catch(() => {
+        estimatedSeconds = null;
+      });
+
+      const { blob, filename } = await requestFile(apiBase, '/api/v1/gpx/map-animate/batch', formData, 'route-animations.zip');
+      const downloadUrl = URL.createObjectURL(blob);
+      mapAnimationBatch = { ...mapAnimationBatch, status: 'success', downloadUrl, filename, message: `Rendered ${mapAnimationBatch.pairs.length} route animations.` };
+    } catch (error) {
+      mapAnimationBatch = { ...mapAnimationBatch, status: 'error', error: parseError(error) };
+    } finally {
+      finishRequest();
+    }
+  }
+
   async function submitTelemetryVideo() {
     if (telemetryVideo.downloadUrl) URL.revokeObjectURL(telemetryVideo.downloadUrl);
     startRequest('Rendering telemetry video...');
@@ -264,6 +301,45 @@
     mapAnimation = { ...mapAnimation, gpxFile: file, durationSeconds };
   }
 
+  async function buildMapAnimationBatchPairs(gpxFiles) {
+    if (!gpxFiles.length) return [];
+    return Promise.all(
+      gpxFiles.map((gpxFile, index) => buildMapAnimationBatchPair(gpxFile, index))
+    );
+  }
+
+  async function handleBatchMapAnimationGpxFilesChange(event) {
+    const selectionId = ++mapAnimationBatchSelectionId;
+    const gpxFiles = Array.from(event.target.files ?? []);
+    if (mapAnimationBatch.downloadUrl) URL.revokeObjectURL(mapAnimationBatch.downloadUrl);
+    const shouldBuildPairs = gpxFiles.length > 0;
+    mapAnimationBatch = { ...mapAnimationBatch, gpxFiles, pairs: [], isPreparing: shouldBuildPairs, status: 'idle', error: '', message: '', downloadUrl: '', filename: '' };
+    if (!shouldBuildPairs) return;
+
+    try {
+      const pairs = await buildMapAnimationBatchPairs(gpxFiles);
+      if (selectionId !== mapAnimationBatchSelectionId) return;
+      mapAnimationBatch = { ...mapAnimationBatch, gpxFiles, pairs, isPreparing: false, status: 'idle', error: '' };
+    } catch (error) {
+      if (selectionId !== mapAnimationBatchSelectionId) return;
+      mapAnimationBatch = { ...mapAnimationBatch, gpxFiles, pairs: [], isPreparing: false, status: 'idle', error: parseError(error, 'Unable to read GPX timestamps.') };
+    }
+  }
+
+  function handleBatchMapAnimationPairDurationChange(index, value) {
+    const pairs = mapAnimationBatch.pairs.map((pair, pairIndex) => (
+      pairIndex === index ? { ...pair, durationSeconds: Number(value) } : pair
+    ));
+    mapAnimationBatch = { ...mapAnimationBatch, pairs, error: '', message: '', status: 'idle' };
+  }
+
+  function handleBatchMapAnimationPairOutputNameChange(index, value) {
+    const pairs = mapAnimationBatch.pairs.map((pair, pairIndex) => (
+      pairIndex === index ? { ...pair, outputName: value } : pair
+    ));
+    mapAnimationBatch = { ...mapAnimationBatch, pairs, error: '', message: '', status: 'idle' };
+  }
+
   async function handleTelemetryGpxChange(event) {
     const file = event.target.files?.[0] ?? null;
     let durationSeconds = 4;
@@ -333,10 +409,15 @@
       {:else if currentPage === 'animation'}
         <AnimationPage
           {mapAnimation}
+          {mapAnimationBatch}
           {isBusy}
           {mapTileOptions}
           onSubmit={submitMapAnimation}
+          onBatchSubmit={submitBatchMapAnimation}
           onGpxChange={handleMapAnimationGpxChange}
+          onBatchGpxFilesChange={handleBatchMapAnimationGpxFilesChange}
+          onBatchPairDurationChange={handleBatchMapAnimationPairDurationChange}
+          onBatchPairOutputNameChange={handleBatchMapAnimationPairOutputNameChange}
         />
       {:else if currentPage === 'telemetry'}
         <TelemetryPage
