@@ -109,6 +109,30 @@ def _parse_batch_jobs(jobs_json: str) -> list[BatchJob]:
     return jobs
 
 
+def _parse_batch_uploads_and_jobs(
+    gpx_files: list[UploadFile] | None,
+    jobs_json: str,
+) -> tuple[list[UploadFile], list[BatchJob]]:
+    if not gpx_files:
+        raise HTTPException(status_code=400, detail="Missing gpx_files uploads")
+
+    validated_gpx_files = [
+        validate_upload(gpx_file, f"gpx_files[{index}]")
+        for index, gpx_file in enumerate(gpx_files)
+    ]
+    jobs = _parse_batch_jobs(jobs_json)
+
+    for index, job in enumerate(jobs, start=1):
+        gpx_file_index = int(job["gpx_file_index"])
+        if gpx_file_index < 0 or gpx_file_index >= len(validated_gpx_files):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Job {index} gpx_file_index does not match an uploaded GPX file",
+            )
+
+    return validated_gpx_files, jobs
+
+
 def _sanitize_output_stem(value: str, fallback: str) -> str:
     filename = os.path.basename(value.strip())
     stem = os.path.splitext(filename)[0] if filename else ""
@@ -251,6 +275,68 @@ def estimate_map_animation(
     return JSONResponse({"estimated_seconds": round(float(estimated_seconds), 2)})
 
 
+@router.post("/gpx/map-animate/batch/estimate")
+def estimate_map_animation_batch(
+    gpx_files: list[UploadFile] | None = File(None),
+    jobs_json: str = Form(...),
+    fps: float = Form(DEFAULT_FPS),
+    resolution: str = Form(...),
+    marker_color: str = Form("#0ea5e9"),
+    trail_color: str = Form("#0ea5e9"),
+    full_trail_color: str = Form("#111827"),
+    full_trail_opacity: float = Form(0.8),
+    line_width: float = Form(2.5),
+    line_opacity: float = Form(1.0),
+    marker_size: float = Form(6.0),
+    marker_style: str = Form("default"),
+    tile_type: str | None = Form(None),
+) -> JSONResponse:
+    del marker_color, trail_color, full_trail_color
+    validated_gpx_files, jobs = _parse_batch_uploads_and_jobs(gpx_files, jobs_json)
+
+    width_px, height_px = _parse_animation_inputs(
+        float(jobs[0]["duration_seconds"]),
+        fps,
+        resolution,
+        line_width,
+        marker_size,
+        full_trail_opacity,
+        line_opacity,
+    )
+
+    try:
+        resolve_marker_style(marker_style)
+        resolve_tile_provider(tile_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        gpx_paths: list[str] = []
+        for index, gpx_file in enumerate(validated_gpx_files):
+            gpx_path = os.path.join(tmp_dir, f"input-{index}.gpx")
+            with open(gpx_path, "w+b") as gpx_input:
+                write_upload_to_file(gpx_file, gpx_input, "GPX")
+            gpx_paths.append(gpx_path)
+
+        estimated_seconds = 0.0
+        for job in jobs:
+            gpx_file_index = int(job["gpx_file_index"])
+            lats, lons = as_bad_request(load_gpx_points, gpx_paths[gpx_file_index])
+            estimated_seconds += float(
+                as_bad_request(
+                    estimate_animation_seconds,
+                    lats,
+                    lons,
+                    width_px,
+                    height_px,
+                    float(job["duration_seconds"]),
+                    fps=fps,
+                )
+            )
+
+    return JSONResponse({"estimated_seconds": round(float(estimated_seconds), 2)})
+
+
 @router.post("/gpx/map-animate")
 def animate_gpx_route(
     gpx_file: UploadFile | str | None = File(None),
@@ -348,22 +434,7 @@ def animate_gpx_routes_batch(
     marker_style: str = Form("default"),
     tile_type: str | None = Form(None),
 ) -> StreamingResponse:
-    if not gpx_files:
-        raise HTTPException(status_code=400, detail="Missing gpx_files uploads")
-
-    validated_gpx_files = [
-        validate_upload(gpx_file, f"gpx_files[{index}]")
-        for index, gpx_file in enumerate(gpx_files)
-    ]
-    jobs = _parse_batch_jobs(jobs_json)
-
-    for index, job in enumerate(jobs, start=1):
-        gpx_file_index = int(job["gpx_file_index"])
-        if gpx_file_index < 0 or gpx_file_index >= len(validated_gpx_files):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Job {index} gpx_file_index does not match an uploaded GPX file",
-            )
+    validated_gpx_files, jobs = _parse_batch_uploads_and_jobs(gpx_files, jobs_json)
 
     width_px, height_px = _parse_animation_inputs(
         float(jobs[0]["duration_seconds"]),

@@ -60,6 +60,13 @@ describe('App', () => {
     });
   }
 
+  function buildZipResponse() {
+    return new Response(new Blob(['zip'], { type: 'application/zip' }), {
+      status: 200,
+      headers: { 'content-disposition': 'attachment; filename=route-animations.zip' }
+    });
+  }
+
   it('renders the trim page by default with header navigation', () => {
     render(App);
 
@@ -170,6 +177,110 @@ describe('App', () => {
     });
     expect(screen.getByLabelText(/Duration for pair 1/i)).toHaveValue(32);
     expect(screen.getByLabelText(/Output name for pair 2/i)).toHaveValue('second');
+  });
+
+  it('requests a batch ETA before rendering and shows it while the ZIP is rendering', async () => {
+    window.location.hash = '#/animation';
+    stubVideoDuration(32);
+    let resolveRender;
+    const renderPromise = new Promise((resolve) => {
+      resolveRender = () => resolve(buildZipResponse());
+    });
+    const fetchMock = vi.fn((url) => {
+      const path = String(url);
+      if (path.endsWith('/api/v1/capabilities')) {
+        return Promise.reject(new Error('Capabilities unavailable'));
+      }
+      if (path.endsWith('/api/v1/gpx/map-animate/batch/estimate')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ estimated_seconds: 42 }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' }
+          })
+        );
+      }
+      if (path.endsWith('/api/v1/gpx/map-animate/batch')) {
+        return renderPromise;
+      }
+      return Promise.reject(new Error(`Unexpected request: ${path}`));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(App);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Batch GPX\/video pairs/i })).toBeInTheDocument();
+    });
+    await fireEvent.click(screen.getByRole('button', { name: /Batch GPX\/video pairs/i }));
+    await fireEvent.change(screen.getByLabelText(/^GPX files$/i), {
+      target: { files: [buildGpxFile('first.gpx'), buildGpxFile('second.gpx')] }
+    });
+    await fireEvent.change(screen.getByLabelText(/^Video files$/i), {
+      target: { files: [buildVideoFile('first.mp4'), buildVideoFile('second.mp4')] }
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Duration for pair 2/i)).toHaveValue(32);
+    });
+
+    await fireEvent.submit(screen.getByRole('button', { name: /Render batch ZIP/i }).closest('form'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Estimated wait: ~42 seconds/i)).toBeInTheDocument();
+    });
+    const batchCalls = fetchMock.mock.calls
+      .map(([url]) => String(url))
+      .filter((url) => url.includes('/api/v1/gpx/map-animate/batch'));
+    expect(batchCalls).toEqual([
+      'http://localhost:8000/api/v1/gpx/map-animate/batch/estimate',
+      'http://localhost:8000/api/v1/gpx/map-animate/batch'
+    ]);
+
+    resolveRender();
+    await waitFor(() => {
+      expect(screen.getByText(/Rendered 2 route animations/i)).toBeInTheDocument();
+    });
+  });
+
+  it('continues batch rendering when the batch ETA request fails', async () => {
+    window.location.hash = '#/animation';
+    stubVideoDuration(32);
+    const fetchMock = vi.fn((url) => {
+      const path = String(url);
+      if (path.endsWith('/api/v1/capabilities')) {
+        return Promise.reject(new Error('Capabilities unavailable'));
+      }
+      if (path.endsWith('/api/v1/gpx/map-animate/batch/estimate')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ detail: 'estimate unavailable' }), { status: 500 })
+        );
+      }
+      if (path.endsWith('/api/v1/gpx/map-animate/batch')) {
+        return Promise.resolve(buildZipResponse());
+      }
+      return Promise.reject(new Error(`Unexpected request: ${path}`));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(App);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Batch GPX\/video pairs/i })).toBeInTheDocument();
+    });
+    await fireEvent.click(screen.getByRole('button', { name: /Batch GPX\/video pairs/i }));
+    await fireEvent.change(screen.getByLabelText(/^GPX files$/i), {
+      target: { files: [buildGpxFile('first.gpx'), buildGpxFile('second.gpx')] }
+    });
+    await fireEvent.change(screen.getByLabelText(/^Video files$/i), {
+      target: { files: [buildVideoFile('first.mp4'), buildVideoFile('second.mp4')] }
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Duration for pair 2/i)).toHaveValue(32);
+    });
+
+    await fireEvent.submit(screen.getByRole('button', { name: /Render batch ZIP/i }).closest('form'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Rendered 2 route animations/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/estimate unavailable/i)).not.toBeInTheDocument();
   });
 
   it('shows the selected marker color in the route animation style controls', async () => {
